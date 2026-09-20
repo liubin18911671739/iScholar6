@@ -1,0 +1,22 @@
+name: ischolar-dev
+
+# Local development overlay: hot-reload the backend, run web via `pnpm dev`.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up backend
+#   pnpm dev   # web on the host, pointed at the backend container
+
+services:
+  backend:
+    build:
+      context: ./services/backend
+      target: dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    volumes:
+      - ./services/backend:/app
+    environment:
+      ENVIRONMENT: development
+
+  web:
+    # Host-run in dev; disable the containerized build to avoid duplicate servers.
+    profiles: ["container-web"]

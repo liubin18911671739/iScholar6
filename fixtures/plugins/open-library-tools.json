@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "open-library-tools",
+  "version": "1.0.0",
+  "name": "Open Library Tools",
+  "description": "Browser-side declarative search against Open Library (CORS-friendly)",
+  "mcpTools": [
+    {
+      "name": "open_library_search",
+      "description": "Search Open Library editions",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "q": { "type": "string", "description": "Query" }
+        },
+        "required": ["q"]
+      },
+      "http": {
+        "method": "GET",
+        "url": "https://openlibrary.org/search.json?q={q}&limit=10",
+        "timeoutMs": 15000
+      }
+    }
+  ]
+}

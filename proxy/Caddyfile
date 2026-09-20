@@ -1,0 +1,9 @@
+# iScholar reverse proxy.
+# Terminates TLS in production (automatic via Caddy) and fronts the web container.
+
+:80 {
+	encode zstd gzip
+
+	# Auth + API + app all served by Next.js.
+	reverse_proxy web:3000
+}

@@ -1,0 +1,1543 @@
+{
+  "privacy": {
+    "sensitive": {
+      "title": "检测到 {count} 处疑似敏感信息",
+      "hint": "发送外部 AI 或提交训练营前请脱敏。可一键替换为占位符，请核对后保存。",
+      "maskAll": "一键遮罩",
+      "categories": {
+        "phone": "手机号",
+        "email": "邮箱",
+        "nationalId": "证件号",
+        "studentId": "学号",
+        "other": "其他"
+      }
+    }
+  },
+  "common": {
+    "run": "运行",
+    "running": "运行中...",
+    "approve": "批准",
+    "reject": "驳回",
+    "applyToManuscript": "应用到论文",
+    "rerun": "重新运行",
+    "insert": "插入",
+    "addAll": "全部添加",
+    "cancel": "取消",
+    "create": "创建",
+    "creating": "创建中...",
+    "unnamedManuscript": "未命名论文",
+    "noData": "未解析到结构化数据。结果在工作区中。",
+    "yes": "是",
+    "no": "否",
+    "export": "导出备份",
+    "import": "导入备份",
+    "uploadPdf": "上传PDF",
+    "parsingPdf": "正在解析PDF...",
+    "pleaseWait": "请稍候..."
+  },
+  "nav": {
+    "training": "AI科研训练",
+    "dashboard": "仪表盘",
+    "projects": "项目",
+    "agents": "智能体",
+    "settings": "设置",
+    "topic": "选题",
+    "litreview": "文献",
+    "design": "设计",
+    "data": "数据",
+    "write": "撰写",
+    "submit": "投稿",
+    "rebuttal": "回复",
+    "selectProject": "选择项目",
+    "tools": "工具",
+    "literatureAnalysis": "文献分析",
+    "paperPolishing": "论文润色",
+    "journalSelection": "期刊选择"
+  },
+  "topbar": {
+    "localMode": "本地",
+    "localUser": "本地用户",
+    "browserOnly": "仅浏览器存储",
+    "theme": "主题",
+    "themeDark": "暗色 (IBM 科技蓝)",
+    "lock": "锁定"
+  },
+  "dashboard": {
+    "title": "仪表盘",
+    "welcome": "欢迎使用iScholar",
+    "newProject": "新建项目",
+    "projects": "项目",
+    "noProjects": "暂无项目",
+    "projectCount": "{count}个进行中",
+    "agentRuns": "智能体运行",
+    "noRuns": "暂无运行记录",
+    "allProjects": "所有项目累计",
+    "recentActivity": "最近活动",
+    "lastAgentRun": "最近一次智能体运行",
+    "startFirst": "从第一个项目开始",
+    "quickStart": "快速入门",
+    "createAndUse": "创建项目并开始使用7个AI智能体",
+    "createProject": "创建新的研究项目",
+    "runTopicScout": "运行TopicScout发现研究机会",
+    "workflow": "依次完成：文献综述 → 研究设计 → 数据分析 → 论文撰写 → 投稿",
+    "createFirst": "创建您的第一个项目",
+    "costTotal": "总花费",
+    "totalTokens": "总Token数",
+    "totalRuns": "总运行次数",
+    "avgLatency": "平均延迟",
+    "costByAgent": "各智能体花费",
+    "costOverTime": "花费趋势",
+    "cost": "花费",
+    "tokens": "Token数",
+    "recentProjects": "最近项目",
+    "continueProject": "继续项目",
+    "noActiveProjects": "暂无活跃项目",
+    "noCostData": "暂无花费数据。运行智能体后此处将显示成本分析。"
+  },
+  "projects": {
+    "title": "项目",
+    "newProject": "新建项目",
+    "createNew": "创建新项目",
+    "projectName": "项目名称",
+    "projectNamePlaceholder": "例如：AI在教育中的元分析",
+    "discipline": "学科领域",
+    "disciplinePlaceholder": "例如：教育学、计算机科学",
+    "goal": "研究目标",
+    "goalPlaceholder": "描述您的研究目标...",
+    "createProject": "创建项目",
+    "updatedAt": "更新于 {date}",
+    "noProjects": "暂无项目",
+    "noProjectsHint": "创建您的第一个研究项目，开始使用7个AI智能体。"
+  },
+  "agents": {
+    "status": {
+      "idle": "就绪",
+      "running": "运行中",
+      "needsReview": "待审核",
+      "needs_review": "待审核",
+      "approved": "已批准",
+      "applied": "已应用",
+      "failed": "失败"
+    },
+    "tabs": {
+      "input": "输入",
+      "workspace": "工作区",
+      "output": "输出"
+    },
+    "configHint": "配置参数后点击运行"
+  },
+  "module": {
+    "back": "返回",
+    "brand": "学伴智枢",
+    "saved": "已保存",
+    "saving": "保存中",
+    "unnamedProject": "未命名项目",
+    "noProjects": "暂无项目",
+    "refresh": "刷新",
+    "workflow": "研究工作流",
+    "trainingStageDone": "训练营任务已完成（教练路径）",
+    "productionStageDone": "生产路径已批准/应用",
+    "receivedFrom": "接收自",
+    "outputTo": "输出至",
+    "disclaimerTitle": "AI 提示",
+    "disclaimer": {
+      "topic": "AI 基于关键词与领域趋势生成候选选题，请结合专业判断谨慎核实创新性与可行性。",
+      "litreview": "AI 可基于关键词识别核心文献与研究缺口，文献时效与结论请谨慎核实。",
+      "design": "AI 辅助构建研究设计与假设，请由专业人员审核其科学性与可行性。",
+      "data": "AI 生成的分析结果仅供参考，不作为医学诊断或最终决策依据。",
+      "write": "AI 生成内容仅供参考，不代表最终观点；采用前请进行人工专业审阅以确保学术规范。",
+      "submit": "AI 推荐的期刊匹配仅供参考，投稿前请核对期刊范围与格式要求。",
+      "rebuttal": "AI 生成的回复信仅供参考，请核实对审稿意见的理解并保持学术诚信。"
+    },
+    "action": {
+      "topic": "生成候选选题",
+      "litreview": "生成综述初稿",
+      "design": "生成研究设计",
+      "data": "运行数据分析",
+      "write": "生成章节内容",
+      "submit": "生成投稿材料",
+      "rebuttal": "生成回复信"
+    },
+    "cardInput": "输入配置",
+    "cardInputHint": "填写参数后生成",
+    "cardPreview": "实时预览",
+    "cardPreviewHint": "生成结果在此呈现",
+    "cardSaved": "已保存内容",
+    "cardSavedHint": "应用于本项目的内容",
+    "sideManualTooltip": "使用说明",
+    "sideChatTooltip": "模块助手",
+    "manualTitle": "使用说明书",
+    "manualStatus": "当前步骤已就绪",
+    "expand": "展开",
+    "subFeatures": {
+      "topic": {
+        "discovery": "选题发现",
+        "literature": "文献分析",
+        "trends": "趋势洞察"
+      },
+      "write": {
+        "write": "章节撰写",
+        "polish": "论文润色",
+        "format": "格式转换"
+      }
+    },
+    "manualIntro": {
+      "topic": "选题角色结合研究方向探索并筛选高潜力的研究课题。",
+      "litreview": "综述角色系统检索文献、梳理研究脉络并识别研究缺口。",
+      "design": "设计角色基于 PICO 框架构建研究设计与可检验假设。",
+      "data": "数据角色负责数据清洗与统计分析，并输出可视化结果。",
+      "write": "写作角色按 IMRaD 结构生成各章节内容，并管理引用与格式。",
+      "submit": "投稿角色根据摘要与关键词匹配期刊，生成 Cover Letter 与投稿材料。",
+      "rebuttal": "返修角色逐条拆解审稿意见，生成结构化回复与修改对照表。"
+    },
+    "manual": {
+      "topic": [
+        {
+          "title": "选题角色",
+          "body": "结合学科领域与研究方向，探索前沿并锁定具备创新性的研究选题。"
+        },
+        {
+          "title": "探索与筛选",
+          "body": "输入关键词与目标期刊，生成多个候选选题并评估新颖性、价值与可行性。"
+        },
+        {
+          "title": "同步至综述",
+          "body": "选定选题后，将自动流转至文献综述阶段进一步验证。"
+        }
+      ],
+      "litreview": [
+        {
+          "title": "综述角色",
+          "body": "全面梳理领域现有研究，识别研究脉络与尚存空白。"
+        },
+        {
+          "title": "检索文献",
+          "body": "输入检索词与年份范围，系统检索并结构化文献元数据与发现。"
+        },
+        {
+          "title": "识别研究缺口",
+          "body": "基于证据表与主题覆盖，输出研究空白供后续设计参考。"
+        }
+      ],
+      "design": [
+        {
+          "title": "PICO 定义",
+          "body": "围绕人群(P)、干预(I)、比较(C)、结果(O)定义研究框架。"
+        },
+        {
+          "title": "变量设置",
+          "body": "定义研究变量、类型与测量方式，并选择研究方法。"
+        },
+        {
+          "title": "输出至数据",
+          "body": "生成设计文档后流转至数据收集与分析阶段。"
+        }
+      ],
+      "data": [
+        {
+          "title": "数据准备",
+          "body": "描述数据来源与收集方法，AI 辅助清洗与预处理。"
+        },
+        {
+          "title": "运行分析",
+          "body": "执行统计分析，输出主要效应、假设检验与置信区间。"
+        },
+        {
+          "title": "结果可视化",
+          "body": "推荐森林图、箱线图等图表，支撑论文结果撰写。"
+        }
+      ],
+      "write": [
+        {
+          "title": "IMRaD 结构",
+          "body": "依次生成引言、方法、结果、讨论等章节内容。"
+        },
+        {
+          "title": "引用管理",
+          "body": "插入并管理引用文献，按目标期刊格式整理。"
+        },
+        {
+          "title": "格式与导出",
+          "body": "选择引用格式并导出 PDF / Word。"
+        }
+      ],
+      "submit": [
+        {
+          "title": "论文与期刊信息",
+          "body": "填写摘要、关键词与开放获取偏好，匹配目标期刊。"
+        },
+        {
+          "title": "期刊匹配列表",
+          "body": "按分区、影响因子与 Fit-score 排序推荐期刊。"
+        },
+        {
+          "title": "投稿材料",
+          "body": "生成 Cover Letter 并核对投稿清单。"
+        }
+      ],
+      "rebuttal": [
+        {
+          "title": "录入审稿意见",
+          "body": "粘贴或上传审稿意见，AI 自动拆解为逐条意见。"
+        },
+        {
+          "title": "逐条回复",
+          "body": "为每条意见生成作者回复、修改位置与支持证据。"
+        },
+        {
+          "title": "对照表与导出",
+          "body": "生成返修对照表与回复信，确保完整一致。"
+        }
+      ]
+    }
+  },
+  "moduleInputs": {
+    "topic": {
+      "tagsLabel": "研究领域",
+      "tags": [
+        "教育",
+        "医学",
+        "计算机",
+        "工程",
+        "社会科学"
+      ],
+      "researchQuestion": "研究问题",
+      "researchQuestionPlaceholder": "请输入您的研究问题...",
+      "generateCandidates": "生成候选选题",
+      "novelty": "创新性",
+      "feasibility": "可行性",
+      "value": "研究价值"
+    },
+    "litreview": {
+      "databasesLabel": "数据库",
+      "databasesList": [
+        "PubMed",
+        "CNKI",
+        "WoS",
+        "Scopus"
+      ],
+      "searchLiterature": "搜索文献",
+      "title": "文称",
+      "author": "作者",
+      "year": "年历",
+      "status": "状态",
+      "notes": "笔注",
+      "statusIncluded": "已包含",
+      "statusExcluded": "未包含",
+      "statusPending": "待定",
+      "researchGaps": "研究缺口与建议",
+      "generateReview": "生成综述初稿"
+    },
+    "design": {
+      "picoP": "P — 人群",
+      "picoI": "I — 干预/暴露",
+      "picoC": "C — 比较/对照",
+      "picoO": "O — 结果",
+      "picoPPlaceholder": "目标人群特征...",
+      "picoIPlaceholder": "干预措施或暴露因素...",
+      "picoCPlaceholder": "对照组设置...",
+      "picoOPlaceholder": "主要结局指标...",
+      "generateQuestion": "生成研究问题",
+      "variableName": "名称",
+      "variableType": "类型",
+      "variableMeasure": "测量方式",
+      "studyTypeRCT": "RCT",
+      "studyTypeCohort": "队列研究",
+      "studyTypeCrossSectional": "横断面研究",
+      "generateDesignDoc": "生成设计文档",
+      "continueToData": "继续前往 数据收集"
+    },
+    "data": {
+      "sampleSize": "样本量",
+      "mainEffect": "主要效应",
+      "pValueCI": "p值 · 95% CI",
+      "testMethod": "检验方法",
+      "result": "结果",
+      "significance": "显著性",
+      "significant": "显著",
+      "notSignificant": "不显著",
+      "forestPlot": "森林图",
+      "boxPlot": "箱线图",
+      "runAnalysis": "运行分析"
+    },
+    "write": {
+      "introduction": "引言",
+      "methods": "方法",
+      "results": "结果",
+      "discussion": "讨论",
+      "statusPending": "待开始",
+      "statusInProgress": "进行中",
+      "myReferences": "我的文献",
+      "insertedCitations": "已插入引用",
+      "insertedCitationsCount": "已插入引用 {count}",
+      "formatLabel": "目标期刊格式",
+      "downloadPDF": "下载 PDF",
+      "downloadWord": "下载 Word"
+    },
+    "submit": {
+      "researchTopic": "研究主题",
+      "paperStatus": "论文状态",
+      "citationFormat": "引用格式",
+      "fileFormat": "文件格式",
+      "generateCoverLetter": "生成 Cover Letter",
+      "journalName": "期刊名",
+      "quartile": "分区",
+      "impactFactor": "影响因子",
+      "reviewCycle": "录用周期",
+      "fitScore": "Fit-score",
+      "checklist": "投稿材料 checklist",
+      "checklistManuscript": "稿件正文",
+      "checklistCoverLetter": "Cover Letter",
+      "checklistFigures": "图表文件",
+      "checklistSupplements": "补充材料",
+      "checklistTitlePage": "标题页"
+    },
+    "rebuttal": {
+      "parseComments": "解析审稿意见",
+      "reviewerId": "审稿人ID",
+      "commentType": "意见类型",
+      "relatedParagraph": "关联段落",
+      "status": "处理状态",
+      "statusRevise": "修改",
+      "statusSuggestion": "建议",
+      "statusClarify": "澄清",
+      "checklistTitle": "返修材料 checklist",
+      "generateResponse": "生成回复信"
+    }
+  },
+  "editor": {
+    "bold": "加粗",
+    "italic": "斜体",
+    "strikethrough": "删除线",
+    "inlineCode": "行内代码",
+    "heading1": "标题 1",
+    "heading2": "标题 2",
+    "heading3": "标题 3",
+    "bulletList": "无序列表",
+    "orderedList": "有序列表",
+    "blockquote": "引用",
+    "insertLink": "插入链接",
+    "linkUrl": "请输入URL：",
+    "insertImage": "插入图片",
+    "imageUrl": "请输入图片URL：",
+    "insertTable": "插入表格",
+    "insertMath": "插入公式",
+    "mathLatex": "请输入LaTeX公式：",
+    "undo": "撤销",
+    "redo": "重做",
+    "history": "历史"
+  },
+  "versionHistory": {
+    "noHistory": "暂无版本历史",
+    "latest": "当前",
+    "restore": "恢复到此版本",
+    "restoring": "恢复中...",
+    "restoreSuccess": "已恢复到选定版本",
+    "restoreError": "恢复失败"
+  },
+  "citations": {
+    "cite": "引用",
+    "insertCitation": "插入引用",
+    "loading": "正在加载引用...",
+    "filter": "筛选引用文献...",
+    "noMatch": "没有匹配的引用文献",
+    "totalCount": "项目中共{count}条引用文献",
+    "orSelect": "或从文献库中选择：",
+    "searchTitle": "学术搜索",
+    "searchPlaceholder": "搜索论文...",
+    "startYear": "起始年",
+    "endYear": "结束年",
+    "searchOpenAlex": "搜索OpenAlex...",
+    "resultCount": "{count}条结果",
+    "added": "已添加",
+    "addToLibrary": "添加到文献库",
+    "searchHint": "搜索论文以添加到您的文献库"
+  },
+  "settings": {
+    "title": "设置",
+    "password": "密码",
+    "changePassword": "更改本地密码",
+    "setPassword": "设置密码以保护您的数据",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "confirmPassword": "确认密码",
+    "changePwdBtn": "更改密码",
+    "setPwdBtn": "设置密码",
+    "pwdMinLength": "密码至少需要4个字符",
+    "pwdMismatch": "两次输入的密码不一致",
+    "pwdSetSuccess": "密码设置成功",
+    "pwdChanged": "密码修改成功",
+    "wrongPassword": "当前密码不正确",
+    "newPwdMinLength": "新密码至少需要4个字符",
+    "storage": "存储",
+    "storageUsage": "浏览器本地存储使用情况",
+    "used": "已使用",
+    "quota": "配额",
+    "storageNote": "所有数据存储在浏览器的IndexedDB中。清除浏览器数据即可重置。",
+    "exportData": "导出数据",
+    "exportHint": "将所有数据下载为JSON备份文件",
+    "importData": "导入数据",
+    "importHint": "从JSON备份文件恢复数据",
+    "importSuccess": "数据导入成功。刷新页面查看更新后的数据。",
+    "agentLanguage": "智能体语言",
+    "agentLanguageHint": "设置AI智能体回复的语言偏好",
+    "langAuto": "自动",
+    "langZh": "仅中文",
+    "langEn": "仅英文",
+    "mcpTools": "MCP工具",
+    "mcpHint": "外部学术服务集成",
+    "enabled": "已启用",
+    "noMcpTools": "未注册MCP工具。",
+    "plugins": {
+      "title": "插件系统",
+      "description": "安装自定义 Agent、提示词包与声明式 MCP 工具（JSON 清单，本地存储）",
+      "manifestLabel": "插件清单 JSON",
+      "manifestPlaceholder": "粘贴 plugin manifest JSON…",
+      "install": "安装插件",
+      "upload": "上传文件",
+      "installSuccess": "已安装插件 {id}",
+      "installed": "已安装插件",
+      "empty": "尚未安装插件。可从 doc/plugins.md 复制示例清单。",
+      "badgeAgents": "{n} 个 Agent",
+      "badgePacks": "{n} 个提示词包",
+      "badgeTools": "{n} 个工具",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "enable": "启用",
+      "disable": "禁用",
+      "uninstall": "卸载",
+      "customAgents": "自定义 Agent 路由",
+      "promptPacks": "提示词包选择",
+      "promptPacksHint": "为内置智能体选择激活的提示词覆盖（全局）",
+      "builtinPack": "内置默认",
+      "mcpTools": "当前已注册 MCP 工具"
+    }
+  },
+  "login": {
+    "tagline": "AI原生学术科研平台",
+    "setupPassword": "设置密码",
+    "enterPassword": "请输入密码",
+    "confirmPwd": "确认密码",
+    "reenterPwd": "请再次输入密码",
+    "unlock": "解锁",
+    "createAndEnter": "创建密码并进入",
+    "localOnly": "数据存储在您的浏览器本地。",
+    "pwdError": "密码错误",
+    "pwdMismatch": "两次输入的密码不一致",
+    "error": "发生错误，请重试。",
+    "pleaseWait": "请稍候...",
+    "rules": {
+      "minLength": "至少8个字符",
+      "uppercase": "至少一个大写字母",
+      "lowercase": "至少一个小写字母",
+      "number": "至少一个数字"
+    }
+  },
+  "landing": {
+    "login": "登录",
+    "getStarted": "开始使用",
+    "aiPlatform": "AI原生科研平台",
+    "fromIdeaToPaper": "从创意到投稿",
+    "sevenAgents": "七大AI智能体全程辅助",
+    "intro": "iScholar 引导您完成整个学术研究流程：",
+    "introDetail": "选题发现、文献综述、研究设计、数据分析、论文撰写、期刊匹配和审稿回复。",
+    "freeStart": "免费开始",
+    "exploreAgents": "探索智能体",
+    "sevenProAgents": "七大专业智能体",
+    "explore": "探索",
+    "enterAgent": "进入 Agent",
+    "resetAgent": "重置语助故事",
+    "constellationHint": "七大智能体如北斗七星，串联起完整的研究生命周期",
+    "ctaCard": "开启你的科研全流程",
+    "nav": {
+      "agents": "智能体",
+      "features": "功能",
+      "pricing": "价格",
+      "docs": "文档"
+    },
+    "agentName": {
+      "topic": "TopicScout · 选题探索",
+      "litreview": "LitReview · 文献综述",
+      "design": "Designer · 研究设计",
+      "data": "DataPilot · 数据分析",
+      "write": "Writer · 论文撰写",
+      "submit": "SubmitMatch · 投稿匹配",
+      "rebuttal": "Rebuttal · 返修与展示"
+    },
+    "featured": {
+      "bullets": [
+        "自动清洗与整理研究数据集",
+        "运行统计检验并输出效应量与置信区间",
+        "推荐森林图、箱线图等可视化结果"
+      ]
+    },
+    "agentDesc": {
+      "topic": "AI驱动的选题发现与趋势分析",
+      "litreview": "系统性文献检索与综述",
+      "design": "研究设计与假设构建",
+      "data": "数据收集、清洗与分析",
+      "write": "IMRaD格式论文撰写",
+      "submit": "期刊匹配与投稿打包",
+      "rebuttal": "审稿意见回复与修改"
+    },
+    "features": {
+      "title": "平台功能",
+      "subtitle": "七大AI智能体 + 浏览器本地架构，覆盖研究全生命周期",
+      "agents": "七大专业智能体",
+      "agentsDesc": "从选题到返修，每个阶段都有专属AI助手。所有数据存储在您的浏览器中，无需服务端数据库。",
+      "localFirst": "浏览器本地优先",
+      "localFirstDesc": "全部数据经 Dexie.js 存入 IndexedDB，无需服务端数据库。您的研究数据完全私密，永不离开您的设备。",
+      "vectorSearch": "本地向量检索",
+      "vectorSearchDesc": "Transformers.js 在浏览器内运行 all-MiniLM-L6-v2 模型，生成384维嵌入向量，支持语义文献检索。",
+      "auditTrail": "SHA-256 审计追踪",
+      "auditTrailDesc": "哈希链式审计账本记录全部智能体操作，确保透明可验证，符合学术研究规范。",
+      "streamingAI": "流式AI响应",
+      "streamingAIDesc": "通过 Server-Sent Events 实时输出 DeepSeek 大模型生成结果，支持中途打断与重新生成。",
+      "i18nTheme": "国际化 + 暗色主题",
+      "i18nThemeDesc": "中英文双语界面，IBM 科技蓝暗色主题，沉浸式研究体验。",
+      "exportImport": "数据导入导出",
+      "exportImportDesc": "完整JSON备份与恢复，附件以Base64编码。支持增量备份，研究数据安全无忧。",
+      "techStack": "技术栈",
+      "techStackDesc": "Next.js 14 + TypeScript + Tailwind CSS + shadcn/ui + Dexie.js + Transformers.js + DeepSeek API"
+    },
+    "pricing": {
+      "title": "价格方案",
+      "subtitle": "透明、可预测的定价。按实际用量付费，无隐藏费用。",
+      "free": {
+        "name": "免费版",
+        "price": "¥0",
+        "period": "/月",
+        "desc": "适合个人研究者和小型项目",
+        "features": [
+          "7大AI智能体全部可用",
+          "每月50次AI调用",
+          "浏览器本地存储（无限制）",
+          "基础文献检索（Semantic Scholar）",
+          "JSON数据导入导出",
+          "社区支持"
+        ],
+        "cta": "免费开始"
+      },
+      "pro": {
+        "name": "专业版",
+        "price": "¥49",
+        "period": "/月",
+        "desc": "适合活跃研究者和课题组",
+        "features": [
+          "7大AI智能体全部可用",
+          "每月500次AI调用",
+          "高级文献检索（Crossref + OpenAlex）",
+          "PDF审稿意见自动解析",
+          "投稿包ZIP下载",
+          "优先邮件支持"
+        ],
+        "cta": "订阅专业版",
+        "popular": true
+      },
+      "team": {
+        "name": "团队版",
+        "price": "¥199",
+        "period": "/月",
+        "desc": "适合实验室和院系团队",
+        "features": [
+          "专业版全部功能",
+          "每月2000次AI调用",
+          "团队数据共享（浏览器本地）",
+          "自定义MCP工具集成",
+          "优先功能请求通道",
+          "专属技术支持"
+        ],
+        "cta": "联系销售"
+      },
+      "tokenNote": "AI调用按实际Token消耗计费。DeepSeek API 价格为 ¥1/百万Token（输入）和 ¥2/百万Token（输出）。以上方案中的调用次数为基于平均用量的估算值。",
+      "faq": {
+        "title": "常见问题",
+        "q1": "数据存储在哪里？",
+        "a1": "所有研究数据存储在您浏览器的IndexedDB中。iScholar不运行任何服务端数据库——您的数据完全私密。",
+        "q2": "可以随时取消吗？",
+        "a2": "可以。专业版和团队版按月订阅，随时可取消。取消后仍可访问已保存的研究数据。",
+        "q3": "如何获取API Key？",
+        "a3": "iScholar默认使用平台内置的DeepSeek API。如果您有自己的API Key，可以在设置中配置。"
+      }
+    },
+    "docs": {
+      "title": "文档与资源",
+      "subtitle": "快速上手 iScholar，了解平台架构与最佳实践",
+      "quickStart": "快速开始",
+      "quickStartDesc": "5分钟了解 iScholar 的核心概念与基本操作流程。",
+      "quickStartSteps": [
+        "设置本地密码，保护您的研究数据",
+        "创建第一个研究项目",
+        "运行 TopicScout 生��候选选题",
+        "按8步工作流依次完成各阶段",
+        "导出备份，安全保存研究数据"
+      ],
+      "userGuide": "使用指南",
+      "userGuideDesc": "详细的用户手册，涵盖7大智能体、引用管理、数据管理等功能。",
+      "devGuide": "开发指南",
+      "devGuideDesc": "面向开发者的本地开发、架构理解与扩展指南。包含目录结构、添加新智能体、i18n和测试说明。",
+      "deployGuide": "部署指南",
+      "deployGuideDesc": "Vercel一键部署、Docker自托管、反向代理配置与数据隐私说明。",
+      "examples": "使用示例",
+      "examplesDesc": "7大AI智能体的完整输入/输出示例，帮助您快速上手。",
+      "architecture": "架构概览",
+      "architectureDesc": "iScholar v6.0 采用浏览器本地架构：Next.js 14 App Router + Dexie.js (IndexedDB) + Transformers.js (本地向量嵌入) + DeepSeek API (流式AI代理)。服务端仅转发AI请求，无用户数据存储。",
+      "readDocs": "阅读文档",
+      "learnMore": "了解更多"
+    }
+  },
+  "agentConfig": {
+    "discipline": "学科领域",
+    "disciplinePlaceholder": "例如：教育学、计算机科学",
+    "keywords": "关键词",
+    "keywordsPlaceholder": "例如：机器学习、教育学、个性化",
+    "targetJournal": "目标期刊（可选）",
+    "targetJournalPlaceholder": "例如：Nature Education",
+    "searchTerms": "检索词",
+    "searchTermsPlaceholder": "例如：高等教育中的机器学习",
+    "yearRange": "年份范围",
+    "yearStart": "起始（如 2015）",
+    "yearTo": "至",
+    "yearEnd": "结束（如 2025）",
+    "maxResults": "最大结果数",
+    "researchQuestion": "研究问题",
+    "researchQuestionPlaceholder": "例如：自适应学习如何影响STEM课程的学生成绩？",
+    "methodHint": "方法提示",
+    "methodHintPlaceholder": "例如：随机对照实验、问卷调查",
+    "dataSource": "数据来源描述",
+    "dataSourcePlaceholder": "例如：3所大学的学生调查数据，CSV格式，包含人口统计学和成绩信息",
+    "dataSourceHelp": "请描述数据来源的详细信息：1) 数据来源渠道（如3所大学的问卷调查）；2) 数据格式（CSV、Excel等）；3) 包含的变量类型（人口统计、成绩等）；4) 样本量和时间跨度。",
+    "collectionMethod": "收集方法",
+    "collectionMethodPlaceholder": "例如：在线问卷、API数据提取",
+    "collectionMethodHelp": "描述数据收集的具体方式，例如：在线问卷、API接口提取、实验记录数据、公开数据集下载等。",
+    "sections": "章节",
+    "sectionNames": {
+      "introduction": "引言",
+      "method": "方法",
+      "results": "结果",
+      "discussion": "讨论",
+      "conclusion": "结论",
+      "abstract": "摘要"
+    },
+    "citationFormat": "引用格式",
+    "abstract": "摘要",
+    "abstractPlaceholder": "在此粘贴论文摘要",
+    "openAccess": "开放获取偏好",
+    "uploadPdfHint": "请上传PDF文件",
+    "reviewerComment": "审稿人意见",
+    "reviewerCommentPlaceholder": "在此粘贴审稿人意见，或上传PDF文件",
+    "uploadReviewPdf": "上传审稿意见PDF",
+    "uploadPdfAutoExtract": "上传PDF自动提取审稿人意见",
+    "draftHistory": "历史记录",
+    "restoreDraft": "恢复草稿",
+    "noDrafts": "暂无历史记录",
+    "autoFilledFromTopic": "已根据选题关键词自动填充检索词"
+  },
+  "output": {
+    "topic": {
+      "title": "趋势与审计",
+      "hint": "运行TopicScout后在此查看趋势图表和审计记录。",
+      "score": "选题评分",
+      "novelty": "新颖性",
+      "value": "价值",
+      "feasibility": "可行性",
+      "auditLog": "审计记录"
+    },
+    "litreview": {
+      "title": "引文网络与证据",
+      "hint": "运行LitReview后在此查看引文网络和证据表。",
+      "evidenceTable": "证据表",
+      "yearDistribution": "出版年份分布",
+      "topicCoverage": "主题覆盖",
+      "identifiedTopics": "识别的主题",
+      "papers": "论文",
+      "year": "年份",
+      "method": "方法",
+      "findings": "发现",
+      "coauthors": "合作作者",
+      "paperCount": "{count}篇论文",
+      "researchGaps": "研究空白",
+      "downloadBibtex": "导出 BibTeX"
+    },
+    "design": {
+      "title": "可行性评估",
+      "hint": "运行ResearchDesigner后在此查看可行性评估。",
+      "feasibility": "可行性评估",
+      "overallFeasibility": "综合可行性",
+      "factorBreakdown": "因素分解",
+      "hypothesis": "假设",
+      "variables": "变量"
+    },
+    "data": {
+      "title": "脚本与可视化",
+      "hint": "运行DataPilot后在此查看脚本和可视化。",
+      "visualizations": "可视化",
+      "generatedScripts": "生成的脚本",
+      "analysisPlan": "分析计划",
+      "suggestions": "建议"
+    },
+    "write": {
+      "title": "参考文献与差异",
+      "hint": "运行IMRaD Writer后在此查看参考文献和差异对比。",
+      "references": "参考文献 ({count})",
+      "unnamed": "未命名",
+      "unknownAuthor": "未知作者",
+      "changes": "变更",
+      "newContent": "章节的新内容",
+      "wordCount": " • {count} 字"
+    },
+    "submit": {
+      "title": "投稿材料",
+      "hint": "运行SubmitMatch后在此查看期刊匹配和投稿状态。",
+      "generating": "生成中...",
+      "downloadZip": "下载投稿包 (ZIP)",
+      "checklist": "投稿清单",
+      "journalMatch": "期刊匹配",
+      "reviewTimeline": "审稿周期：{timeline}",
+      "oa": "OA",
+      "nonOa": "非OA",
+      "clickToSelect": "点击期刊以选择用于投稿包"
+    },
+    "rebuttal": {
+      "title": "回复材料与导出",
+      "hint": "运行RebuttalShow后在此查看逐条回复。",
+      "pointByPoint": "逐条回复 ({count})",
+      "export": "导出",
+      "reviewerComment": "审稿人意见",
+      "authorResponse": "作者回复",
+      "changeLocation": "修改位置",
+      "supportingEvidence": "支持证据"
+    }
+  },
+  "moduleAssistant": {
+    "title": "模块助手",
+    "context": "上下文",
+    "clearChat": "清空对话",
+    "inputPlaceholder": "输入您的问题...",
+    "send": "发送",
+    "sending": "发送中...",
+    "emptyHint": {
+      "topic": "我可以帮助您理解选题流程、解释创新性/可行性/价值评分维度，或回答关于研究趋势的问题。",
+      "litreview": "我可以帮助您理解文献检索策略、证据表结构，或解释如何识别研究缺口。",
+      "design": "我可以帮助您理解PICO框架、变量定义，或提供研究设计建议。",
+      "data": "我可以帮助您理解数据分析方法、可视化选择，或解释统计输出。",
+      "write": "我可以帮助您理解IMRaD结构、学术写作规范，或提供章节组织建议。",
+      "submit": "我可以帮助您理解期刊匹配逻辑、投稿材料要求，或解读Fit-score。",
+      "rebuttal": "我可以帮助您理解审稿意见分类、回复策略，或修改对照表格式。"
+    },
+    "disclaimer": "AI助手回复仅供参考，请结合专业判断使用。"
+  },
+  "wizard": {
+    "description": "创建研究项目并配置您的研究方向。",
+    "title": "创建新项目",
+    "step1Title": "选择学科类别",
+    "step2Title": "选择研究方法",
+    "step3Title": "描述研究方向",
+    "step4Title": "命名项目",
+    "socialSciences": "社科",
+    "socialSciencesDesc": "社会科学：教育学、心理学、社会学、管理学等",
+    "naturalSciences": "自科",
+    "naturalSciencesDesc": "自然科学：医学、工程、计算机、生物学等",
+    "qualitative": "定性",
+    "qualitativeDesc": "访谈、案例研究、文本分析等",
+    "quantitative": "定量",
+    "quantitativeDesc": "实验、问卷调查、统计分析等",
+    "mixed": "混合",
+    "mixedDesc": "定性与定量方法结合",
+    "researchDirection": "研究方向",
+    "researchDirectionPlaceholder": "简要描述您的研究方向和关注的问题...",
+    "projectName": "项目名称",
+    "projectNamePlaceholder": "为您的项目取一个名称",
+    "back": "上一步",
+    "next": "下一步",
+    "create": "创建项目",
+    "creating": "创建中...",
+    "step1Label": "学科",
+    "step2Label": "方法",
+    "step3Label": "方向",
+    "step4Label": "命名",
+    "summary": "项目摘要",
+    "summaryDiscipline": "学科类别",
+    "summaryMethod": "研究方法",
+    "summaryDirection": "研究方向"
+  },
+  "tools": {
+    "title": "独立工具",
+    "literatureAnalysis": "文献分析",
+    "literatureAnalysisDesc": "上传或粘贴论文文本，AI自动提取关键主题、研究方法与研究缺口。",
+    "paperPolishing": "论文润色",
+    "paperPolishingDesc": "提升英文学术写作质量，修正语法、句式与学术表达规范。",
+    "journalSelection": "期刊选择",
+    "journalSelectionDesc": "根据摘要与关键词匹配最合适的投稿期刊，按分区与匹配度排序。",
+    "launch": "启动",
+    "backToTools": "返回工具列表",
+    "sessionNote": "会话模式：结果不会保存到项目。"
+  },
+  "training": {
+    "manage": {
+      "title": "训练营与班级管理",
+      "collabBanner": "Supabase 协作模式：数据由服务端和 RLS 管理。",
+      "loadError": "无法读取 Supabase 协作训练营，请检查馆员权限、登录状态或网络连接。",
+      "forbiddenPage": "当前账号不是馆员、管理员或本营助教，无法访问训练营管理。",
+      "forbiddenCreate": "当前账号不是馆员或管理员，无法创建训练营。",
+      "taBanner": "助教模式：可查看本营进度、报表与脱敏导出，可审核提交与催交；不可创建/归档训练营、邀请或移除成员、修改课程编排。",
+      "createProgram": "创建训练营",
+      "editProgram": "编辑训练营",
+      "programList": "训练营 / 班级",
+      "emptyPrograms": "暂无训练营，请先创建一个。",
+      "classSummary": "班级汇总",
+      "membersTitle": "学员进度与邀请",
+      "memberCount": "学员：{count} 人（不含已移除）。",
+      "archivedHint": "训练营已归档：禁止新邀请与新提交。",
+      "batchInvite": "批量邀请（每行一个邮箱，或逗号分隔）",
+      "createSuccess": "训练营已创建",
+      "createFailed": "创建训练营失败，请稍后重试。",
+      "saveSuccess": "训练营已保存",
+      "saveFailed": "保存失败，请稍后重试。",
+      "inviteSuccess": "已处理邀请：{email}",
+      "inviteFailed": "邀请学员失败，请检查网络连接后重试。",
+      "removeSuccess": "已移除成员",
+      "removeFailed": "移除失败",
+      "roleUpdated": "角色已更新",
+      "batchResult": "批量邀请完成：成功 {ok}，失败 {fail}",
+      "placeholders": {
+        "name": "例如：2026 春季 AI科研训练营",
+        "email": "学员邮箱",
+        "staffEmail": "馆员邮箱",
+        "orgName": "例如：外国语学院",
+        "localLearner": "学员匿名 ID 或姓名",
+        "batch": "alice@example.com\nbob@example.com"
+      },
+      "status": {
+        "draft": "草稿",
+        "active": "进行中",
+        "archived": "已归档"
+      },
+      "role": {
+        "learner": "学员",
+        "ta": "助教"
+      },
+      "tasksTitle": "营任务编排",
+      "tasksHint": "勾选本营要做的 MVP 任务，设置顺序、截止与是否强制审核。清空配置后学员回退为全部 8 任务。",
+      "tasksReadOnlyHint": "当前为助教只读视图：可查看任务编排与班级进度，不可修改课程（仅馆员可保存）。",
+      "tasksSaved": "任务编排已保存",
+      "progressTitle": "班级进度",
+      "progressEmpty": "暂无成员进度。",
+      "nudgeFailed": "催交失败",
+      "nudgeSuccess": "已向在读学员发送催交标记",
+      "reportTitle": "班级运营报表",
+      "reportLoadError": "无法加载班级报表",
+      "exportTitle": "数据导出",
+      "exportSuccess": "导出已开始下载",
+      "exportFailed": "导出失败",
+      "export": {
+        "scope": "范围",
+        "format": "格式",
+        "redact": "脱敏 ID / 邮箱",
+        "redactForced": "脱敏 ID / 邮箱（助教强制开启）",
+        "members": "成员",
+        "submissions": "提交",
+        "reviews": "审核",
+        "gradebook": "成绩册 (LMS CSV)",
+        "lms": "LMS 导入格式",
+        "lmsFormat": "LMS 平台"
+      },
+      "lmsLinkTitle": "LMS / LTI AGS 对接",
+      "lmsLinkHint": "配置 Canvas/Moodle 开发者密钥与 AGS line item URL 后，可一键推送本营总分。密钥仅存服务端。完整 LTI 浏览器启动需平台侧注册。",
+      "lmsEnabled": "推送已启用",
+      "lmsDisabled": "推送未启用",
+      "lmsSave": "保存 LMS 配置",
+      "lmsSaveSuccess": "LMS 配置已保存",
+      "lmsSaveFailed": "保存 LMS 配置失败",
+      "lmsDryRun": "测试获取 Token",
+      "lmsPush": "推送成绩到 LMS",
+      "lmsDryRunOk": "Token 获取成功（未推送成绩）",
+      "lmsPushOk": "已推送 {count} 条成绩",
+      "lmsPushFailed": "LMS 推送失败",
+      "lms": {
+        "platform": "平台",
+        "authMethod": "鉴权方式",
+        "issuer": "Issuer",
+        "clientId": "Client ID",
+        "clientSecret": "Client Secret",
+        "tokenUrl": "Token URL",
+        "agsLineitemUrl": "AGS Line Item URL",
+        "deploymentId": "Deployment ID",
+        "enablePush": "启用 AGS 推送",
+        "privateKey": "Private Key PEM",
+        "secretSet": "已保存",
+        "lastPush": "上次推送：{status} · {at}"
+      },
+      "report": {
+        "activeMembers": "在读学员",
+        "avgCompletion": "平均完成率",
+        "pendingReviews": "待审提交",
+        "avgWait": "平均等待",
+        "funnelTitle": "任务状态漏斗（必做任务单元）",
+        "taskRatesTitle": "各任务提交率 / 通过率",
+        "taskTableTitle": "任务明细",
+        "colTask": "任务",
+        "submitRate": "提交率",
+        "approveRate": "通过率",
+        "avgScore": "均分",
+        "riskTitle": "风险学员",
+        "riskEmpty": "暂无高风险学员（多次退回或升级）。",
+        "revisions": "退回 {count} 次",
+        "escalations": "升级 {count} 次"
+      },
+      "funnel": {
+        "notStarted": "未开始",
+        "draft": "草稿",
+        "submitted": "已提交",
+        "needsRevision": "待修改",
+        "approved": "已通过",
+        "escalated": "已升级"
+      },
+      "actions": {
+        "create": "创建",
+        "save": "保存修改",
+        "reset": "清空表单",
+        "invite": "发送邀请",
+        "join": "加入班级",
+        "batchInvite": "批量邀请",
+        "remove": "移除",
+        "saveTasks": "保存任务编排",
+        "nudgeAll": "批量催交",
+        "refresh": "刷新",
+        "export": "导出",
+        "uploadPack": "上传任务包",
+        "issueCerts": "为合格学员发结业证",
+        "openAnalytics": "运营报表 v2",
+        "verifyCert": "校验结业证",
+        "addOrgMember": "添加院系成员",
+        "createOrg": "新建院系"
+      },
+      "packsTitle": "自定义训练任务包",
+      "packsHint": "上传 JSON 任务包后，可在任务编排中使用 pack.task 形式的任务 ID（如 demo-pack.lit-note）。",
+      "packsBuiltin": "内置任务 {count}",
+      "packsCustom": "自定义包 {count}",
+      "packInvalidJson": "JSON 无效",
+      "packUploadFailed": "任务包上传失败",
+      "packUploadSuccess": "任务包已保存",
+      "certIssueFailed": "结业证发放失败",
+      "certIssueResult": "已发证 {issued}，跳过 {skipped}",
+      "calendarTitle": "截止日历",
+      "calendarLoadError": "无法加载日历",
+      "calendar": {
+        "taskDue": "截止",
+        "start": "开营",
+        "end": "结营"
+      },
+      "realtime": {
+        "submission": "新提交/状态：{status} · 任务 {task}",
+        "review": "有新的审核记录"
+      },
+      "fields": {
+        "name": "名称",
+        "description": "描述",
+        "discipline": "学科",
+        "cohort": "班级 / Cohort",
+        "startDate": "开始日期",
+        "endDate": "结束日期",
+        "maxMembers": "最大人数",
+        "status": "状态",
+        "ordinal": "顺序",
+        "dueAt": "截止时间",
+        "required": "必做",
+        "forceReview": "强制审核",
+        "organization": "院系 / 组织"
+      },
+      "orgHint": "馆员仅可管理所属院系下的训练营；全局管理员可跨院系。",
+      "orgMembersTitle": "院系成员",
+      "orgMembersHint": "将馆员加入院系后，对方即可管理该院系训练营。org_admin 可管理成员；viewer 仅只读。",
+      "orgMembersEmpty": "本院系尚无成员。",
+      "orgMemberAdded": "已添加院系成员",
+      "orgMemberRemoved": "已移除院系成员",
+      "orgMemberFailed": "院系成员操作失败",
+      "orgCreateHint": "仅全局管理员可新建院系（失败则无权限）。",
+      "orgCreateSuccess": "院系已创建",
+      "orgCreateFailed": "创建院系失败",
+      "orgRoles": {
+        "librarian": "馆员",
+        "org_admin": "院系管理员",
+        "viewer": "只读"
+      },
+      "inviteErrors": {
+        "ALREADY_ENROLLED": "该学员已在训练营中。",
+        "PROGRAM_ARCHIVED": "训练营已归档，无法邀请。",
+        "PROGRAM_FULL": "训练营人数已满。",
+        "PROGRAM_NOT_FOUND": "训练营不存在。",
+        "INVITE_FAILED": "发送邀请失败，请检查邮箱或 Supabase 邮件配置。",
+        "USER_EXISTS_LOOKUP_FAILED": "用户可能已存在但查找失败，请稍后重试。",
+        "INVALID_EMAIL": "邮箱格式无效。",
+        "VALIDATION_ERROR": "请求参数无效。",
+        "GENERIC": "邀请失败（{code}）。"
+      },
+      "consentAuditTitle": "营脱敏同意审计",
+      "consentAuditHint": "学员正式提交训练任务时需确认脱敏；此处仅展示同意记录与扫描计数，不含原文。",
+      "consentLoadError": "无法加载同意审计",
+      "consentEmpty": "尚无提交同意记录。",
+      "consentRedacted": "已确认脱敏",
+      "consentCleanScan": "扫描无敏感项",
+      "consentSensitiveAtScan": "扫描命中 {count}",
+      "consentStats": {
+        "total": "同意 {count}",
+        "submits": "提交同意 {count}",
+        "redacted": "确认脱敏 {count}",
+        "sensitiveHits": "曾命中敏感 {count}"
+      },
+      "packsVisualTitle": "可视化课表（引用内置任务）",
+      "packsVisualHint": "勾选并排序内置 MVP 任务，生成 curriculum 用 JSON；也可继续粘贴完整自定义 pack。",
+      "packsApplyOrder": "上移",
+      "packsApplyDown": "下移",
+      "packsGenerateJson": "生成 Pack JSON",
+      "packsSelectTasks": "选择内置任务"
+    },
+    "review": {
+      "title": "馆员抽样审核队列",
+      "collabHint": "Supabase 协作审核：仅工作人员可访问。",
+      "localHint": "仅显示学员主动提交审核的训练产物。",
+      "loadError": "无法读取 Supabase 审核队列，请检查权限、登录状态或网络连接。",
+      "forbidden": "当前账号不是馆员或管理员，无法访问审核队列。",
+      "empty": "当前没有待审核任务。",
+      "taskFallback": "训练任务",
+      "noAnswers": "（无答案）",
+      "reflection": "反思",
+      "evidence": "证据卡：{count} 张",
+      "noEvidence": "未附加证据卡。",
+      "feedbackPlaceholder": "馆员反馈",
+      "score": "分数",
+      "claimedBadge": "已认领",
+      "metaLine": "学员：{learner} · 等待：{wait}",
+      "reviewSuccess": "审核已提交",
+      "reviewFailed": "审核失败",
+      "claimFailed": "认领失败",
+      "claimed": "已认领该提交",
+      "unclaimed": "已取消认领",
+      "filters": {
+        "task": "任务",
+        "allTasks": "全部任务",
+        "status": "状态",
+        "pending": "待审（已提交）",
+        "submitted": "已提交",
+        "needsReview": "待修改",
+        "escalated": "已升级",
+        "completed": "已完成",
+        "all": "全部",
+        "peerStatus": "互评状态",
+        "peerAny": "全部互评",
+        "peerAwaiting": "待互评",
+        "peerDone": "互评完成",
+        "peerSkipped": "互评跳过",
+        "sort": "排序",
+        "oldest": "等待最久优先",
+        "newest": "最近更新优先"
+      },
+      "templates": {
+        "approved": "模板：通过",
+        "needsRevision": "模板：修改",
+        "escalated": "模板：升级"
+      },
+      "actions": {
+        "refresh": "刷新",
+        "claim": "认领",
+        "unclaim": "取消认领",
+        "approve": "通过",
+        "needsRevision": "要求修改",
+        "escalate": "转人工处理",
+        "prev": "上一页",
+        "next": "下一页"
+      },
+      "pageLabel": "第 {page}/{totalPages} 页 · 共 {total} 条"
+    },
+    "analytics": {
+      "title": "训练营运营报表",
+      "subtitle": "跨营对比、审核员 KPI 与风险热力图（启发式，非定罪）。",
+      "from": "学期起",
+      "to": "学期止",
+      "refresh": "刷新",
+      "loadError": "无法加载运营报表",
+      "forbidden": "当前账号无权访问运营报表。",
+      "empty": "所选时间窗内暂无训练营。",
+      "crossTitle": "跨营完成率 / 待审",
+      "reviewerTitle": "审核员 KPI",
+      "noReviewers": "暂无审核记录。",
+      "heatmapTitle": "风险热力图",
+      "heatmapHint": "颜色表示解释性风险分（退回/升级/敏感/逾期等），点击格子可看 reason 列表。",
+      "kpi": {
+        "programs": "营数量",
+        "members": "在读人数",
+        "pending": "待审提交",
+        "completion": "平均完成率"
+      },
+      "chart": {
+        "completion": "完成率%",
+        "pending": "待审"
+      },
+      "reviewer": {
+        "total": "审 {count}",
+        "approved": "通过 {count}",
+        "revision": "退回 {count}",
+        "escalated": "升级 {count}",
+        "avgScore": "均分 {score}"
+      }
+    },
+    "certificate": {
+      "verifyTitle": "结业证明校验",
+      "verifyHint": "输入证书 content_hash（SHA-256）验证真伪。仅显示脱敏元数据。",
+      "hashLabel": "证书哈希",
+      "verifyAction": "校验",
+      "verifyFailed": "校验请求失败",
+      "valid": "证书有效",
+      "invalid": "未找到匹配证书或哈希不一致",
+      "program": "训练营",
+      "learner": "学员",
+      "completedAt": "结业时间",
+      "tasks": "完成任务数",
+      "issuer": "签发方"
+    },
+    "peer": {
+      "title": "同伴互评",
+      "hint": "同营匿名互评：你看不到对方真实姓名。可勾选关联证据卡后给出通过或要求修改。",
+      "refresh": "刷新",
+      "loadError": "无法加载互评队列",
+      "empty": "暂无待你互评的任务。",
+      "answer": "作答 {n}",
+      "reflection": "反思",
+      "evidence": "证据卡（可勾选关联）",
+      "feedbackPlaceholder": "写给同伴的反馈（请保持尊重与具体）",
+      "scorePlaceholder": "可选分数 0–100",
+      "approve": "互评通过",
+      "needsRevision": "建议修改",
+      "submitSuccess": "互评已提交",
+      "submitFailed": "互评提交失败"
+    },
+    "learner": {
+      "title": "AI科研教练训练空间",
+      "subtitle": "默认教练模式：先完成判断、核验和反思，再使用 AI 输出。",
+      "enrollmentError": "无法读取 Supabase 协作报名，请检查登录状态或网络连接。",
+      "enrolledNeedProject": "已加入「{name}」，请先创建科研项目后开始提交。",
+      "enrolledSync": "已加入「{name}」，提交将同步到远端。",
+      "notEnrolled": "尚未加入训练营，请等待馆员邀请。",
+      "campFallback": "训练营",
+      "needProject": "请先创建一个科研项目，再进入训练空间。",
+      "taskList": "MVP 训练任务",
+      "completionRate": "完成率 {rate}%",
+      "loadingTask": "正在加载训练任务",
+      "openAgent": "打开对应智能体",
+      "status": {
+        "not_started": "未开始",
+        "in_progress": "进行中",
+        "submitted": "已提交",
+        "needs_review": "待审核",
+        "reviewed": "已审阅",
+        "completed": "已完成",
+        "approved": "已通过",
+        "needs_revision": "需修改",
+        "escalated": "已升级",
+        "overdue": "已逾期"
+      },
+      "feedbackTitle": "馆员反馈",
+      "scoreLabel": "分数 {score}",
+      "resubmitHint": "馆员要求修改：请根据反馈更新内容后再次提交。",
+      "answerPlaceholder": "写下你的判断和依据",
+      "reflection": "我的修改/核验理由",
+      "sensitiveHint": "提交内容疑似包含敏感信息，请脱敏。",
+      "sensitiveBlocked": "检测到可能的手机号、邮箱、证件号或学号，请先「一键遮罩」脱敏后再提交。",
+      "maskApplied": "已遮罩 {count} 处敏感片段，请复核后提交。",
+      "consentFailed": "无法记录脱敏同意，请重新登录后重试。",
+      "archivedBlocked": "训练营已归档，无法提交。",
+      "submitFailed": "提交失败",
+      "submittedRemote": "任务已同步提交到训练营",
+      "submittedLocal": "任务已提交：{id}",
+      "draftSaved": "草稿已保存",
+      "saveDraft": "保存草稿",
+      "submit": "提交训练任务",
+      "resubmit": "按反馈再次提交",
+      "evidenceTitle": "证据核验卡",
+      "claimPlaceholder": "待核验的 AI 陈述",
+      "excerptPlaceholder": "原文证据或 DOI",
+      "addEvidence": "添加证据卡",
+      "evidenceSaved": "证据卡已保存，请完成核验状态标记。",
+      "verify": {
+        "unverified": "未核验",
+        "verified": "已支持",
+        "unsupported": "不支持",
+        "incorrect": "错误来源"
+      },
+      "stepProgress": "已完成 {done}/{total} 步",
+      "showExample": "查看示例",
+      "hideExample": "收起示例",
+      "stepDone": "已完成",
+      "stepTodo": "未完成",
+      "checklistTitle": "提交前检查",
+      "checklistSteps": "全部步骤已按要求填写",
+      "checklistReflection": "已填写修改/核验理由",
+      "checklistSensitive": "无未脱敏敏感信息",
+      "checklistEvidence": "建议添加证据卡（审阅任务推荐）",
+      "checklistEvidenceRequired": "至少添加一张证据卡",
+      "fillSample": "填入示例（可改）",
+      "finalCheckTitle": "最终问题自检",
+      "finalCheck": {
+        "minLength": "长度足够（≥20 字）",
+        "hasRelation": "含疑问/关系表述（如何/是否/what/how…）",
+        "notSlogan": "不是纯口号或过短立场句"
+      },
+      "rubricTitle": "评分构成（预估）",
+      "rubricSteps": "步骤完成",
+      "rubricReflection": "反思",
+      "rubricEvidence": "证据",
+      "rubricReview": "教师评分",
+      "rubricEstimated": "预估 {score} 分",
+      "rubricReviewPending": "待审阅",
+      "agentRunsTitle": "关联的智能体运行",
+      "agentRunsEmpty": "尚未关联运行。可先打开智能体，返回后关联最近一次运行。",
+      "linkLatestRun": "关联最近运行",
+      "returnToTraining": "返回训练任务",
+      "autoSaved": "已自动保存草稿",
+      "coachTabAnswer": "作答",
+      "coachTabCoach": "教练",
+      "openTask": "进入任务"
+    },
+    "report": {
+      "title": "个人训练报告",
+      "exportJson": "导出 JSON",
+      "exportPdf": "打印 / PDF",
+      "radarTitle": "能力雷达图",
+      "taskTableTitle": "任务明细",
+      "colTask": "任务",
+      "colStatus": "状态",
+      "colDecision": "审核",
+      "colScore": "分数",
+      "feedbackTitle": "最近馆员反馈",
+      "feedbackEmpty": "暂无馆员反馈。",
+      "footnote": "报告基于任务提交、反思与审核记录生成。未完成任务分数为 0。协作模式下任务状态与反馈来自远端。"
+    },
+    "tasks": {
+      "research-question": {
+        "steps": {
+          "0": {
+            "title": "明确研究对象和场景",
+            "prompt": "写清谁、在什么情境下、研究边界是什么。",
+            "placeholder": "例：本科生 / 课程论文 / 不含考试作弊情境…",
+            "example": "研究对象为…；场景限定在…；不讨论…"
+          },
+          "1": {
+            "title": "比较三个候选问题",
+            "prompt": "从新颖性、价值、可行性比较三个可检索问题。",
+            "placeholder": "用表格或分条：Q1/Q2/Q3 + 三维评价 + 初步取舍",
+            "example": "Q1：… 新颖性/价值/可行性…\nQ2：…\nQ3：…"
+          },
+          "2": {
+            "title": "填写保留或放弃理由",
+            "prompt": "说明为何保留其一、放弃其余，并记录一次人工修改。",
+            "placeholder": "保留…因为…；放弃…因为…；我修改了…",
+            "example": "保留 Q2，因…；放弃 Q1/Q3，因…；将品牌名泛化为…"
+          },
+          "3": {
+            "title": "提交最终研究问题",
+            "prompt": "给出一条可检索、含对象与关系的最终问题表述。",
+            "placeholder": "在…中，…如何影响…？",
+            "example": "在允许使用生成式 AI 的本科课程论文中，…如何影响引用准确性？"
+          }
+        }
+      },
+      "retrieval-query": {
+        "steps": {
+          "0": {
+            "title": "拆分核心概念",
+            "prompt": "从研究问题抽出 2–4 个核心概念。",
+            "placeholder": "概念A / 概念B / 概念C",
+            "example": "核心概念：生成式AI；学术写作；引用准确性；提示词策略"
+          },
+          "1": {
+            "title": "补充英文和同义词",
+            "prompt": "为每个概念写中英文与同义词。",
+            "placeholder": "中文—English—synonyms",
+            "example": "生成式AI — generative AI — LLM, ChatGPT"
+          },
+          "2": {
+            "title": "生成检索式",
+            "prompt": "组合布尔/字段检索式（中英各一更佳）。",
+            "placeholder": "(A OR A') AND (B OR B')",
+            "example": "(\"generative AI\" OR LLM) AND (citation OR reference) AND writing"
+          },
+          "3": {
+            "title": "记录检索调整理由",
+            "prompt": "说明为何调整关键词或库。",
+            "placeholder": "因召回过宽/过窄，将…改为…",
+            "example": "首次召回偏技术实现，加入 academic writing 限定教育场景。"
+          }
+        }
+      },
+      "evidence-verification": {
+        "steps": {
+          "0": {
+            "title": "标记需要核验的陈述",
+            "prompt": "粘贴或摘录 AI 输出中需核验的句子。",
+            "placeholder": "「……」——待核验",
+            "example": "陈述：XX 方法在 2020 年被证明最优（待核）。"
+          },
+          "1": {
+            "title": "绑定文献和原文",
+            "prompt": "给出 DOI/题名与对应原文摘录。",
+            "placeholder": "DOI:… 原文：「…」",
+            "example": "DOI 10.xxxx/… 原文 p.12：「…」"
+          },
+          "2": {
+            "title": "判断证据强度",
+            "prompt": "支持 / 部分支持 / 不支持，并说明理由。",
+            "placeholder": "判断：部分支持，因…",
+            "example": "不支持：原文讨论的是…，与 AI 断言范围不符。"
+          },
+          "3": {
+            "title": "修改无依据结论",
+            "prompt": "改写或删除无证据的句子，保留修改说明。",
+            "placeholder": "原稿→改稿；原因…",
+            "example": "删除「最优」表述，改为「在样本 X 上表现较好」。"
+          }
+        }
+      },
+      "research-design": {
+        "steps": {
+          "0": {
+            "title": "选择研究方法",
+            "prompt": "说明方法类型及适配理由。",
+            "placeholder": "内容分析 / 准实验 / 访谈…，因…",
+            "example": "采用内容分析：对作业文本与提示词日志编码。"
+          },
+          "1": {
+            "title": "定义变量或材料",
+            "prompt": "自变量、因变量或材料清单。",
+            "placeholder": "IV:… DV:… 材料:…",
+            "example": "IV:提示词策略；DV:引用准确率与幻觉率；材料:课程作业。"
+          },
+          "2": {
+            "title": "说明样本与限制",
+            "prompt": "样本来源、规模与外部效度限制。",
+            "placeholder": "样本 n=… 来自…；限制:…",
+            "example": "某校两门课约 120 份作业；不可推广到研究生学位论文。"
+          },
+          "3": {
+            "title": "解释可行性",
+            "prompt": "时间、权限、伦理与资源是否可行。",
+            "placeholder": "已获…同意；工期…周",
+            "example": "教师允许匿名分析作业；4 周内可完成编码。"
+          }
+        }
+      },
+      "data-governance": {
+        "steps": {
+          "0": {
+            "title": "说明数据来源",
+            "prompt": "数据从哪来、是否含个人标识。",
+            "placeholder": "来源：…；标识字段：…",
+            "example": "来源课程平台导出；含学号与邮箱。"
+          },
+          "1": {
+            "title": "识别隐私风险",
+            "prompt": "列出隐私风险与影响对象。",
+            "placeholder": "风险1… 对象…",
+            "example": "学号可反查身份；聊天日志可能含敏感内容。"
+          },
+          "2": {
+            "title": "识别版权风险",
+            "prompt": "上传/共享是否触及版权或平台条款。",
+            "placeholder": "全文 PDF 不可上传因…",
+            "example": "出版社 PDF 不可外传；仅可保留题录与摘录。"
+          },
+          "3": {
+            "title": "制定脱敏方案",
+            "prompt": "删除/哈希/聚合等步骤清单。",
+            "placeholder": "1.去学号 2.哈希邮箱 3.…",
+            "example": "去标识→哈希邮箱→聚合到班级层再分析。"
+          }
+        }
+      },
+      "responsible-writing": {
+        "steps": {
+          "0": {
+            "title": "选择段落结构",
+            "prompt": "说明本节论证结构（主张-证据-限定）。",
+            "placeholder": "总-分-总 / IMRaD 片段…",
+            "example": "主张→两项证据→反例限定→小结。"
+          },
+          "1": {
+            "title": "标记 AI 参与环节",
+            "prompt": "哪些句子/结构由 AI 辅助，你做了什么。",
+            "placeholder": "AI:大纲；我:论据与改写",
+            "example": "AI 生成三段提纲；论证与文献由我重写。"
+          },
+          "2": {
+            "title": "完成事实核验",
+            "prompt": "关键事实与数据的核对结果。",
+            "placeholder": "数据 X 已核对来源 Y",
+            "example": "样本量表述已与方法节一致。"
+          },
+          "3": {
+            "title": "填写作者修改说明",
+            "prompt": "相对 AI 草稿，你改了什么、为何改。",
+            "placeholder": "删除夸张表述；补充限定条件…",
+            "example": "删除「显著优于」；改为与基线无显著差异的表述。"
+          }
+        }
+      },
+      "journal-decision": {
+        "steps": {
+          "0": {
+            "title": "明确稿件主题",
+            "prompt": "一句话主题 + 方法/贡献类型。",
+            "placeholder": "主题…；贡献类型:实证/综述…",
+            "example": "主题：本科生 GenAI 引用准确性；贡献：教学场景实证。"
+          },
+          "1": {
+            "title": "比较三个期刊",
+            "prompt": "范围、APC、周期、风险对比。",
+            "placeholder": "J1/J2/J3 范围|APC|周期|风险",
+            "example": "J1 教育技术 匹配高 APC 中；J2 过宽；J3 预警需核验。"
+          },
+          "2": {
+            "title": "核对官网要求",
+            "prompt": "字数、格式、数据政策、预印本。",
+            "placeholder": "官网上：字数… 数据…",
+            "example": "已核官网：4000–7000 词；鼓励开放数据。"
+          },
+          "3": {
+            "title": "说明最终选择",
+            "prompt": "选择与备选及理由。",
+            "placeholder": "首选… 因…；备选…",
+            "example": "首选 J1：范围匹配且无预警；备选 J2。"
+          }
+        }
+      },
+      "rebuttal-action": {
+        "steps": {
+          "0": {
+            "title": "分类审稿意见",
+            "prompt": "合理 / 误解 / 不可接受，逐条标注。",
+            "placeholder": "R1合理；R2误解；R3不可接受因…",
+            "example": "R1 方法细节不足→合理；R2 要求改理论框架→误解。"
+          },
+          "1": {
+            "title": "制定修改行动",
+            "prompt": "每条对应可执行修改。",
+            "placeholder": "R1→在§3 补充…",
+            "example": "R1：补充编码手册附录；R2：在回复中澄清范围。"
+          },
+          "2": {
+            "title": "绑定证据或位置",
+            "prompt": "修改落点（章节/图表/引用）。",
+            "placeholder": "§4.2 表2；新增附录 A",
+            "example": "表2 增列；附录 A 编码示例。"
+          },
+          "3": {
+            "title": "完成作者确认",
+            "prompt": "确认回复礼貌、具体、无过度承诺。",
+            "placeholder": "已通读回复信；无未核实承诺",
+            "example": "已删除「下一版一定引用审稿人论文」类表述。"
+          }
+        }
+      }
+    }
+  }
+}

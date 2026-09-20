@@ -1,0 +1,1543 @@
+{
+  "privacy": {
+    "sensitive": {
+      "title": "{count} possible sensitive item(s) detected",
+      "hint": "Redact before calling external AI or submitting to a camp. One-click replace with placeholders — review before saving.",
+      "maskAll": "Mask all",
+      "categories": {
+        "phone": "Phone",
+        "email": "Email",
+        "nationalId": "National ID",
+        "studentId": "Student ID",
+        "other": "Other"
+      }
+    }
+  },
+  "common": {
+    "run": "Run",
+    "running": "Running...",
+    "approve": "Approve",
+    "reject": "Reject",
+    "applyToManuscript": "Apply to Manuscript",
+    "rerun": "Rerun",
+    "insert": "Insert",
+    "addAll": "Add All",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "unnamedManuscript": "Untitled Manuscript",
+    "noData": "No structured data parsed. Results are in the workspace.",
+    "yes": "Yes",
+    "no": "No",
+    "export": "Export Backup",
+    "import": "Import Backup",
+    "uploadPdf": "Upload PDF",
+    "parsingPdf": "Parsing PDF...",
+    "pleaseWait": "Please wait..."
+  },
+  "nav": {
+    "training": "AI Research Training",
+    "dashboard": "Dashboard",
+    "projects": "Projects",
+    "agents": "Agents",
+    "settings": "Settings",
+    "topic": "Topic",
+    "litreview": "Lit Review",
+    "design": "Design",
+    "data": "Data",
+    "write": "Write",
+    "submit": "Submit",
+    "rebuttal": "Rebuttal",
+    "selectProject": "Select Project",
+    "tools": "Tools",
+    "literatureAnalysis": "Literature Analysis",
+    "paperPolishing": "Paper Polishing",
+    "journalSelection": "Journal Selection"
+  },
+  "topbar": {
+    "localMode": "Local",
+    "localUser": "Local User",
+    "browserOnly": "Browser storage only",
+    "theme": "Theme",
+    "themeDark": "Dark (IBM Tech Blue)",
+    "lock": "Lock"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to iScholar",
+    "newProject": "New Project",
+    "projects": "Projects",
+    "noProjects": "No projects yet",
+    "projectCount": "{count} in progress",
+    "agentRuns": "Agent Runs",
+    "noRuns": "No runs recorded",
+    "allProjects": "Across all projects",
+    "recentActivity": "Recent Activity",
+    "lastAgentRun": "Last agent run",
+    "startFirst": "Start with your first project",
+    "quickStart": "Quick Start",
+    "createAndUse": "Create a project and start using 7 AI agents",
+    "createProject": "Create a new research project",
+    "runTopicScout": "Run TopicScout to discover research opportunities",
+    "workflow": "Complete in order: Literature Review → Research Design → Data Analysis → Manuscript Writing → Submission",
+    "createFirst": "Create Your First Project",
+    "costTotal": "Total Spend",
+    "totalTokens": "Total Tokens",
+    "totalRuns": "Total Runs",
+    "avgLatency": "Avg Latency",
+    "costByAgent": "Cost by Agent",
+    "costOverTime": "Cost Over Time",
+    "cost": "Cost",
+    "tokens": "Tokens",
+    "recentProjects": "Recent Projects",
+    "continueProject": "Continue Project",
+    "noActiveProjects": "No active projects",
+    "noCostData": "No cost data yet. Run agents to see cost analytics here."
+  },
+  "projects": {
+    "title": "Projects",
+    "newProject": "New Project",
+    "createNew": "Create New Project",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "e.g., Meta-analysis of AI in Education",
+    "discipline": "Discipline",
+    "disciplinePlaceholder": "e.g., Education, Computer Science",
+    "goal": "Research Goal",
+    "goalPlaceholder": "Describe your research goal...",
+    "createProject": "Create Project",
+    "updatedAt": "Updated {date}",
+    "noProjects": "No projects yet",
+    "noProjectsHint": "Create your first research project to start using 7 AI agents."
+  },
+  "agents": {
+    "status": {
+      "idle": "Ready",
+      "running": "Running",
+      "needsReview": "Needs Review",
+      "needs_review": "Needs Review",
+      "approved": "Approved",
+      "applied": "Applied",
+      "failed": "Failed"
+    },
+    "tabs": {
+      "input": "Input",
+      "workspace": "Workspace",
+      "output": "Output"
+    },
+    "configHint": "Configure parameters and click Run"
+  },
+  "module": {
+    "back": "Back",
+    "brand": "iScholar Studio",
+    "saved": "Saved",
+    "saving": "Saving",
+    "unnamedProject": "Untitled Project",
+    "noProjects": "No projects",
+    "refresh": "Refresh",
+    "workflow": "Research workflow",
+    "trainingStageDone": "Training camp task completed (coach path)",
+    "productionStageDone": "Production path approved/applied",
+    "receivedFrom": "From",
+    "outputTo": "to",
+    "disclaimerTitle": "AI Notice",
+    "disclaimer": {
+      "topic": "AI generates candidate topics from keywords and trends. Verify novelty and feasibility with your own judgment.",
+      "litreview": "AI identifies core literature and research gaps from keywords. Verify recency and conclusions carefully.",
+      "design": "AI assists with research design and hypotheses. Have a specialist review scientific validity and feasibility.",
+      "data": "AI-generated analysis is for reference only and is not a medical diagnosis or decision basis.",
+      "write": "AI content is for reference only. Conduct manual expert review before adoption to ensure academic standards.",
+      "submit": "AI journal matches are advisory. Verify journal scope and formatting before submission.",
+      "rebuttal": "AI response letters are for reference. Verify your understanding of reviewer comments and maintain integrity."
+    },
+    "action": {
+      "topic": "Generate Topics",
+      "litreview": "Generate Review",
+      "design": "Generate Design",
+      "data": "Run Analysis",
+      "write": "Generate Section",
+      "submit": "Generate Materials",
+      "rebuttal": "Generate Response"
+    },
+    "cardInput": "Input",
+    "cardInputHint": "Fill in and generate",
+    "cardPreview": "Live Preview",
+    "cardPreviewHint": "Generated results appear here",
+    "cardSaved": "Saved Content",
+    "cardSavedHint": "Applied to this project",
+    "sideManualTooltip": "User Manual",
+    "sideChatTooltip": "Module Assistant",
+    "manualTitle": "User Manual",
+    "manualStatus": "This step is ready",
+    "expand": "Expand",
+    "subFeatures": {
+      "topic": {
+        "discovery": "Topic Discovery",
+        "literature": "Literature Analysis",
+        "trends": "Trend Insights"
+      },
+      "write": {
+        "write": "Section Writing",
+        "polish": "Paper Polishing",
+        "format": "Format Conversion"
+      }
+    },
+    "manualIntro": {
+      "topic": "The Topic agent explores your field and surfaces high-potential research topics.",
+      "litreview": "The Review agent systematically searches literature, maps the field, and finds gaps.",
+      "design": "The Design agent builds research design and testable hypotheses from the PICO framework.",
+      "data": "The Data agent handles cleaning and statistical analysis, with visualizations.",
+      "write": "The Writer agent generates IMRaD sections and manages citations and formatting.",
+      "submit": "The Submit agent matches journals from your abstract and keywords, and builds submission materials.",
+      "rebuttal": "The Rebuttal agent breaks down reviewer comments into structured responses and a revision checklist."
+    },
+    "manual": {
+      "topic": [
+        {
+          "title": "Topic role",
+          "body": "Combine discipline and direction to explore frontiers and lock in novel topics."
+        },
+        {
+          "title": "Explore & filter",
+          "body": "Enter keywords and a target journal to generate candidates scored by novelty, value, and feasibility."
+        },
+        {
+          "title": "Sync to Review",
+          "body": "After selecting a topic, flow continues to the literature review for validation."
+        }
+      ],
+      "litreview": [
+        {
+          "title": "Review role",
+          "body": "Map existing research and identify the conversation and the gaps."
+        },
+        {
+          "title": "Search literature",
+          "body": "Enter search terms and year range to retrieve and structure paper metadata and findings."
+        },
+        {
+          "title": "Find gaps",
+          "body": "Use the evidence table and topic coverage to surface research gaps for design."
+        }
+      ],
+      "design": [
+        {
+          "title": "PICO definition",
+          "body": "Frame the study around Population, Intervention, Comparison, and Outcome."
+        },
+        {
+          "title": "Variables",
+          "body": "Define variables, types, and measurements, then choose a research method."
+        },
+        {
+          "title": "Output to Data",
+          "body": "Generate a design document, then continue to data collection and analysis."
+        }
+      ],
+      "data": [
+        {
+          "title": "Prepare data",
+          "body": "Describe data source and collection method; AI assists with cleaning and prep."
+        },
+        {
+          "title": "Run analysis",
+          "body": "Run statistics and output main effects, hypothesis tests, and confidence intervals."
+        },
+        {
+          "title": "Visualize",
+          "body": "Recommend forest plots, box plots, and more to support the results section."
+        }
+      ],
+      "write": [
+        {
+          "title": "IMRaD structure",
+          "body": "Generate Introduction, Methods, Results, and Discussion in sequence."
+        },
+        {
+          "title": "Citations",
+          "body": "Insert and manage references and format them for the target journal."
+        },
+        {
+          "title": "Format & export",
+          "body": "Choose a citation style and export to PDF / Word."
+        }
+      ],
+      "submit": [
+        {
+          "title": "Paper & journal",
+          "body": "Fill in abstract, keywords, and open-access preference to match journals."
+        },
+        {
+          "title": "Journal list",
+          "body": "Recommend journals ranked by quartile, impact factor, and Fit-score."
+        },
+        {
+          "title": "Materials",
+          "body": "Generate a Cover Letter and verify the submission checklist."
+        }
+      ],
+      "rebuttal": [
+        {
+          "title": "Enter comments",
+          "body": "Paste or upload reviewer comments; AI splits them into individual points."
+        },
+        {
+          "title": "Point-by-point",
+          "body": "Generate an author response, change location, and supporting evidence per point."
+        },
+        {
+          "title": "Checklist & export",
+          "body": "Produce a revision checklist and response letter, ensuring completeness."
+        }
+      ]
+    }
+  },
+  "moduleInputs": {
+    "topic": {
+      "tagsLabel": "Research Fields",
+      "tags": [
+        "Education",
+        "Medicine",
+        "Computer Science",
+        "Engineering",
+        "Social Sciences"
+      ],
+      "researchQuestion": "Research Question",
+      "researchQuestionPlaceholder": "Enter your research question...",
+      "generateCandidates": "Generate Candidate Topics",
+      "novelty": "Novelty",
+      "feasibility": "Feasibility",
+      "value": "Research Value"
+    },
+    "litreview": {
+      "databasesLabel": "Databases",
+      "databasesList": [
+        "PubMed",
+        "CNKI",
+        "WoS",
+        "Scopus"
+      ],
+      "searchLiterature": "Search Literature",
+      "title": "Title",
+      "author": "Author",
+      "year": "Year",
+      "status": "Status",
+      "notes": "Notes",
+      "statusIncluded": "Included",
+      "statusExcluded": "Excluded",
+      "statusPending": "Pending",
+      "researchGaps": "Research Gaps & Suggestions",
+      "generateReview": "Generate Review Draft"
+    },
+    "design": {
+      "picoP": "P — Population",
+      "picoI": "I — Intervention/Exposure",
+      "picoC": "C — Comparison/Control",
+      "picoO": "O — Outcome",
+      "picoPPlaceholder": "Target population characteristics...",
+      "picoIPlaceholder": "Intervention or exposure factor...",
+      "picoCPlaceholder": "Control group setup...",
+      "picoOPlaceholder": "Primary outcome measures...",
+      "generateQuestion": "Generate Research Question",
+      "variableName": "Name",
+      "variableType": "Type",
+      "variableMeasure": "Measurement",
+      "studyTypeRCT": "RCT",
+      "studyTypeCohort": "Cohort Study",
+      "studyTypeCrossSectional": "Cross-Sectional",
+      "generateDesignDoc": "Generate Design Document",
+      "continueToData": "Continue to Data Collection"
+    },
+    "data": {
+      "sampleSize": "Sample Size",
+      "mainEffect": "Main Effect",
+      "pValueCI": "p-value · 95% CI",
+      "testMethod": "Test Method",
+      "result": "Result",
+      "significance": "Significance",
+      "significant": "Significant",
+      "notSignificant": "Not Significant",
+      "forestPlot": "Forest Plot",
+      "boxPlot": "Box Plot",
+      "runAnalysis": "Run Analysis"
+    },
+    "write": {
+      "introduction": "Introduction",
+      "methods": "Methods",
+      "results": "Results",
+      "discussion": "Discussion",
+      "statusPending": "Not Started",
+      "statusInProgress": "In Progress",
+      "myReferences": "My References",
+      "insertedCitations": "Inserted Citations",
+      "insertedCitationsCount": "{count} Inserted Citations",
+      "formatLabel": "Target Journal Format",
+      "downloadPDF": "Download PDF",
+      "downloadWord": "Download Word"
+    },
+    "submit": {
+      "researchTopic": "Research Topic",
+      "paperStatus": "Paper Status",
+      "citationFormat": "Citation Format",
+      "fileFormat": "File Format",
+      "generateCoverLetter": "Generate Cover Letter",
+      "journalName": "Journal Name",
+      "quartile": "Quartile",
+      "impactFactor": "Impact Factor",
+      "reviewCycle": "Review Cycle",
+      "fitScore": "Fit-score",
+      "checklist": "Submission Checklist",
+      "checklistManuscript": "Manuscript",
+      "checklistCoverLetter": "Cover Letter",
+      "checklistFigures": "Figures & Tables",
+      "checklistSupplements": "Supplementary Materials",
+      "checklistTitlePage": "Title Page"
+    },
+    "rebuttal": {
+      "parseComments": "Parse Reviewer Comments",
+      "reviewerId": "Reviewer ID",
+      "commentType": "Comment Type",
+      "relatedParagraph": "Related Paragraph",
+      "status": "Status",
+      "statusRevise": "Revise",
+      "statusSuggestion": "Suggestion",
+      "statusClarify": "Clarify",
+      "checklistTitle": "Revision Checklist",
+      "generateResponse": "Generate Response Letter"
+    }
+  },
+  "editor": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "inlineCode": "Inline Code",
+    "heading1": "Heading 1",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "bulletList": "Bullet List",
+    "orderedList": "Ordered List",
+    "blockquote": "Blockquote",
+    "insertLink": "Insert Link",
+    "linkUrl": "Enter URL:",
+    "insertImage": "Insert Image",
+    "imageUrl": "Enter image URL:",
+    "insertTable": "Insert Table",
+    "insertMath": "Insert Formula",
+    "mathLatex": "Enter LaTeX formula:",
+    "undo": "Undo",
+    "redo": "Redo",
+    "history": "History"
+  },
+  "versionHistory": {
+    "noHistory": "No version history yet",
+    "latest": "Current",
+    "restore": "Restore this version",
+    "restoring": "Restoring...",
+    "restoreSuccess": "Restored to selected version",
+    "restoreError": "Failed to restore"
+  },
+  "citations": {
+    "cite": "Cite",
+    "insertCitation": "Insert Citation",
+    "loading": "Loading citations...",
+    "filter": "Filter citations...",
+    "noMatch": "No matching citations",
+    "totalCount": "{count} citations in project",
+    "orSelect": "or select from your library:",
+    "searchTitle": "Academic Search",
+    "searchPlaceholder": "Search papers...",
+    "startYear": "Start Year",
+    "endYear": "End Year",
+    "searchOpenAlex": "Search OpenAlex...",
+    "resultCount": "{count} results",
+    "added": "Added",
+    "addToLibrary": "Add to Library",
+    "searchHint": "Search papers to add to your library"
+  },
+  "settings": {
+    "title": "Settings",
+    "password": "Password",
+    "changePassword": "Change Local Password",
+    "setPassword": "Set a password to protect your data",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm Password",
+    "changePwdBtn": "Change Password",
+    "setPwdBtn": "Set Password",
+    "pwdMinLength": "Password must be at least 4 characters",
+    "pwdMismatch": "Passwords do not match",
+    "pwdSetSuccess": "Password set successfully",
+    "pwdChanged": "Password changed successfully",
+    "wrongPassword": "Current password is incorrect",
+    "newPwdMinLength": "New password must be at least 4 characters",
+    "storage": "Storage",
+    "storageUsage": "Browser Local Storage Usage",
+    "used": "Used",
+    "quota": "Quota",
+    "storageNote": "All data is stored in the browser's IndexedDB. Clear browser data to reset.",
+    "exportData": "Export Data",
+    "exportHint": "Download all data as a JSON backup file",
+    "importData": "Import Data",
+    "importHint": "Restore data from a JSON backup file",
+    "importSuccess": "Data imported successfully. Refresh the page to see updates.",
+    "agentLanguage": "Agent Language",
+    "agentLanguageHint": "Set the language preference for AI agent responses",
+    "langAuto": "Auto",
+    "langZh": "Chinese Only",
+    "langEn": "English Only",
+    "mcpTools": "MCP Tools",
+    "mcpHint": "External academic service integrations",
+    "enabled": "Enabled",
+    "noMcpTools": "No MCP tools registered.",
+    "plugins": {
+      "title": "Plugin System",
+      "description": "Install custom agents, prompt packs, and declarative MCP tools (JSON manifests, local-only)",
+      "manifestLabel": "Plugin manifest JSON",
+      "manifestPlaceholder": "Paste plugin manifest JSON…",
+      "install": "Install plugin",
+      "upload": "Upload file",
+      "installSuccess": "Installed plugin {id}",
+      "installed": "Installed plugins",
+      "empty": "No plugins yet. Copy a sample from doc/plugins.md.",
+      "badgeAgents": "{n} agents",
+      "badgePacks": "{n} prompt packs",
+      "badgeTools": "{n} tools",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "uninstall": "Uninstall",
+      "customAgents": "Custom agent routes",
+      "promptPacks": "Prompt pack selection",
+      "promptPacksHint": "Choose active prompt overrides for built-in agents (global)",
+      "builtinPack": "Built-in default",
+      "mcpTools": "Registered MCP tools"
+    }
+  },
+  "login": {
+    "tagline": "AI-Native Academic Research Platform",
+    "setupPassword": "Set Password",
+    "enterPassword": "Enter password",
+    "confirmPwd": "Confirm Password",
+    "reenterPwd": "Re-enter password",
+    "unlock": "Unlock",
+    "createAndEnter": "Create Password & Enter",
+    "localOnly": "Data is stored locally in your browser.",
+    "pwdError": "Incorrect password",
+    "pwdMismatch": "Passwords do not match",
+    "error": "An error occurred. Please try again.",
+    "pleaseWait": "Please wait...",
+    "rules": {
+      "minLength": "At least 8 characters",
+      "uppercase": "At least one uppercase letter",
+      "lowercase": "At least one lowercase letter",
+      "number": "At least one number"
+    }
+  },
+  "landing": {
+    "login": "Login",
+    "getStarted": "Get Started",
+    "aiPlatform": "AI-Native Research Platform",
+    "fromIdeaToPaper": "From Idea to Publication",
+    "sevenAgents": "7 AI Agents Guiding You All the Way",
+    "intro": "iScholar guides you through the entire research workflow:",
+    "introDetail": "Topic discovery, literature review, research design, data analysis, manuscript writing, journal matching, and peer review rebuttal.",
+    "freeStart": "Start Free",
+    "exploreAgents": "Explore Agents",
+    "sevenProAgents": "7 Specialized AI Agents",
+    "explore": "Explore",
+    "enterAgent": "Enter Agent",
+    "resetAgent": "Reset Story",
+    "constellationHint": "Seven agents like the Big Dipper, linking the full research lifecycle",
+    "ctaCard": "Start your end-to-end research flow",
+    "nav": {
+      "agents": "Agents",
+      "features": "Features",
+      "pricing": "Pricing",
+      "docs": "Docs"
+    },
+    "agentName": {
+      "topic": "TopicScout · Topic Discovery",
+      "litreview": "LitReview · Literature Review",
+      "design": "Designer · Research Design",
+      "data": "DataPilot · Data Analysis",
+      "write": "Writer · Manuscript Writing",
+      "submit": "SubmitMatch · Journal Matching",
+      "rebuttal": "Rebuttal · Peer Review"
+    },
+    "featured": {
+      "bullets": [
+        "Clean and structure research datasets automatically",
+        "Run statistical tests and output effect sizes and confidence intervals",
+        "Recommend visualizations like forest plots and box plots"
+      ]
+    },
+    "agentDesc": {
+      "topic": "AI-driven topic discovery and trend analysis",
+      "litreview": "Systematic literature search and review",
+      "design": "Research design and hypothesis building",
+      "data": "Data collection, cleaning, and analysis",
+      "write": "IMRaD-format manuscript writing",
+      "submit": "Journal matching and submission packaging",
+      "rebuttal": "Peer review rebuttal and revision"
+    },
+    "features": {
+      "title": "Platform Features",
+      "subtitle": "7 AI agents + browser-local architecture, covering the full research lifecycle",
+      "agents": "7 Specialized AI Agents",
+      "agentsDesc": "From topic discovery to peer review rebuttal, each stage has a dedicated AI assistant. All data is stored in your browser — no server database needed.",
+      "localFirst": "Browser-Local First",
+      "localFirstDesc": "All data stored in IndexedDB via Dexie.js. Your research data is completely private and never leaves your device.",
+      "vectorSearch": "Local Vector Search",
+      "vectorSearchDesc": "Transformers.js runs the all-MiniLM-L6-v2 model in your browser, generating 384-dim embeddings for semantic literature search.",
+      "auditTrail": "SHA-256 Audit Trail",
+      "auditTrailDesc": "Hash-chained audit ledger records all agent operations, ensuring transparency and verifiability for academic integrity.",
+      "streamingAI": "Streaming AI Responses",
+      "streamingAIDesc": "Real-time output from DeepSeek models via Server-Sent Events, with support for interruption and regeneration.",
+      "i18nTheme": "i18n + Dark Theme",
+      "i18nThemeDesc": "Bilingual Chinese/English interface with IBM tech blue dark theme for immersive research.",
+      "exportImport": "Data Import & Export",
+      "exportImportDesc": "Complete JSON backup and restore with Base64-encoded attachments. Incremental backup support keeps your research data safe.",
+      "techStack": "Tech Stack",
+      "techStackDesc": "Next.js 14 + TypeScript + Tailwind CSS + shadcn/ui + Dexie.js + Transformers.js + DeepSeek API"
+    },
+    "pricing": {
+      "title": "Pricing Plans",
+      "subtitle": "Transparent, predictable pricing. Pay for what you use, no hidden fees.",
+      "free": {
+        "name": "Free",
+        "price": "$0",
+        "period": "/mo",
+        "desc": "For individual researchers and small projects",
+        "features": [
+          "All 7 AI agents available",
+          "50 AI calls per month",
+          "Unlimited browser-local storage",
+          "Basic literature search (Semantic Scholar)",
+          "JSON data import & export",
+          "Community support"
+        ],
+        "cta": "Start Free"
+      },
+      "pro": {
+        "name": "Pro",
+        "price": "$7",
+        "period": "/mo",
+        "desc": "For active researchers and research groups",
+        "features": [
+          "All 7 AI agents available",
+          "500 AI calls per month",
+          "Advanced literature search (Crossref + OpenAlex)",
+          "PDF review comment auto-extraction",
+          "Submission package ZIP download",
+          "Priority email support"
+        ],
+        "cta": "Subscribe Pro",
+        "popular": true
+      },
+      "team": {
+        "name": "Team",
+        "price": "$29",
+        "period": "/mo",
+        "desc": "For labs and department teams",
+        "features": [
+          "All Pro features",
+          "2,000 AI calls per month",
+          "Team data sharing (browser-local)",
+          "Custom MCP tool integration",
+          "Priority feature request channel",
+          "Dedicated technical support"
+        ],
+        "cta": "Contact Sales"
+      },
+      "tokenNote": "AI calls are billed by actual token usage. DeepSeek API pricing: $0.14/1M tokens (input) and $0.28/1M tokens (output). Call counts above are estimates based on average usage.",
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "q1": "Where is my data stored?",
+        "a1": "All research data is stored in your browser's IndexedDB. iScholar runs no server-side database — your data is completely private.",
+        "q2": "Can I cancel anytime?",
+        "a2": "Yes. Pro and Team plans are monthly subscriptions that can be cancelled anytime. You'll still have access to your saved research data.",
+        "q3": "How do I get an API Key?",
+        "a3": "iScholar uses the platform's built-in DeepSeek API by default. If you have your own API Key, you can configure it in Settings."
+      }
+    },
+    "docs": {
+      "title": "Docs & Resources",
+      "subtitle": "Get started with iScholar, understand the architecture and best practices",
+      "quickStart": "Quick Start",
+      "quickStartDesc": "Learn iScholar's core concepts and basic workflow in 5 minutes.",
+      "quickStartSteps": [
+        "Set a local password to protect your research data",
+        "Create your first research project",
+        "Run TopicScout to discover candidate topics",
+        "Follow the 8-stage workflow through each phase",
+        "Export a backup to safely store your research data"
+      ],
+      "userGuide": "User Guide",
+      "userGuideDesc": "Detailed user manual covering all 7 agents, citation management, data management, and more.",
+      "devGuide": "Development Guide",
+      "devGuideDesc": "Local development, architecture understanding, and extension guide for developers. Includes directory structure, adding new agents, i18n, and testing.",
+      "deployGuide": "Deployment Guide",
+      "deployGuideDesc": "Vercel one-click deploy, Docker self-hosting, reverse proxy configuration, and data privacy notes.",
+      "examples": "Usage Examples",
+      "examplesDesc": "Complete input/output examples for all 7 AI agents to help you get started quickly.",
+      "architecture": "Architecture Overview",
+      "architectureDesc": "iScholar v6.0 uses a browser-local architecture: Next.js 14 App Router + Dexie.js (IndexedDB) + Transformers.js (local vector embeddings) + DeepSeek API (streaming AI proxy). The server only forwards AI requests — no user data is stored.",
+      "readDocs": "Read Docs",
+      "learnMore": "Learn More"
+    }
+  },
+  "agentConfig": {
+    "discipline": "Discipline",
+    "disciplinePlaceholder": "e.g., Education, Computer Science",
+    "keywords": "Keywords",
+    "keywordsPlaceholder": "e.g., Machine Learning, Education, Personalization",
+    "targetJournal": "Target Journal (optional)",
+    "targetJournalPlaceholder": "e.g., Nature Education",
+    "searchTerms": "Search Terms",
+    "searchTermsPlaceholder": "e.g., Machine Learning in Higher Education",
+    "yearRange": "Year Range",
+    "yearStart": "Start (e.g., 2015)",
+    "yearTo": "to",
+    "yearEnd": "End (e.g., 2025)",
+    "maxResults": "Max Results",
+    "researchQuestion": "Research Question",
+    "researchQuestionPlaceholder": "e.g., How does adaptive learning affect student performance in STEM courses?",
+    "methodHint": "Method Hint",
+    "methodHintPlaceholder": "e.g., Randomized controlled trial, survey",
+    "dataSource": "Data Source Description",
+    "dataSourcePlaceholder": "e.g., Student survey data from 3 universities, CSV format, with demographics and grades",
+    "dataSourceHelp": "Describe your data source in detail: 1) Origin (e.g., survey from 3 universities); 2) Format (CSV, Excel, etc.); 3) Variables included (demographics, grades, etc.); 4) Sample size and time span.",
+    "collectionMethod": "Collection Method",
+    "collectionMethodPlaceholder": "e.g., Online survey, API data extraction",
+    "collectionMethodHelp": "Describe how data was collected: online survey, API extraction, experiment logs, public dataset download, etc.",
+    "sections": "Sections",
+    "sectionNames": {
+      "introduction": "Introduction",
+      "method": "Method",
+      "results": "Results",
+      "discussion": "Discussion",
+      "conclusion": "Conclusion",
+      "abstract": "Abstract"
+    },
+    "citationFormat": "Citation Format",
+    "abstract": "Abstract",
+    "abstractPlaceholder": "Paste manuscript abstract here",
+    "openAccess": "Open Access Preference",
+    "uploadPdfHint": "Please upload a PDF file",
+    "reviewerComment": "Reviewer Comments",
+    "reviewerCommentPlaceholder": "Paste reviewer comments here, or upload a PDF file",
+    "uploadReviewPdf": "Upload Review PDF",
+    "uploadPdfAutoExtract": "Upload PDF to auto-extract reviewer comments",
+    "draftHistory": "History",
+    "restoreDraft": "Restore Draft",
+    "noDrafts": "No history",
+    "autoFilledFromTopic": "Search terms auto-filled from topic keywords"
+  },
+  "output": {
+    "topic": {
+      "title": "Trends & Audit",
+      "hint": "Run TopicScout to view trend charts and audit records here.",
+      "score": "Topic Score",
+      "novelty": "Novelty",
+      "value": "Value",
+      "feasibility": "Feasibility",
+      "auditLog": "Audit Log"
+    },
+    "litreview": {
+      "title": "Citation Network & Evidence",
+      "hint": "Run LitReview to view citation network and evidence table here.",
+      "evidenceTable": "Evidence Table",
+      "yearDistribution": "Publication Year Distribution",
+      "topicCoverage": "Topic Coverage",
+      "identifiedTopics": "Identified Topics",
+      "papers": "Papers",
+      "year": "Year",
+      "method": "Method",
+      "findings": "Findings",
+      "coauthors": "Coauthors",
+      "paperCount": "{count} papers",
+      "researchGaps": "Research Gaps",
+      "downloadBibtex": "Export BibTeX"
+    },
+    "design": {
+      "title": "Feasibility Assessment",
+      "hint": "Run ResearchDesigner to view feasibility assessment here.",
+      "feasibility": "Feasibility Assessment",
+      "overallFeasibility": "Overall Feasibility",
+      "factorBreakdown": "Factor Breakdown",
+      "hypothesis": "Hypothesis",
+      "variables": "Variables"
+    },
+    "data": {
+      "title": "Scripts & Visualization",
+      "hint": "Run DataPilot to view scripts and visualizations here.",
+      "visualizations": "Visualizations",
+      "generatedScripts": "Generated Scripts",
+      "analysisPlan": "Analysis Plan",
+      "suggestions": "Suggestions"
+    },
+    "write": {
+      "title": "References & Diff",
+      "hint": "Run IMRaD Writer to view references and diff comparison here.",
+      "references": "References ({count})",
+      "unnamed": "Untitled",
+      "unknownAuthor": "Unknown Author",
+      "changes": "Changes",
+      "newContent": "New content for the section",
+      "wordCount": " · {count} words"
+    },
+    "submit": {
+      "title": "Submission Materials",
+      "hint": "Run SubmitMatch to view journal matching and submission status here.",
+      "generating": "Generating...",
+      "downloadZip": "Download Submission Package (ZIP)",
+      "checklist": "Submission Checklist",
+      "journalMatch": "Journal Match",
+      "reviewTimeline": "Review timeline: {timeline}",
+      "oa": "OA",
+      "nonOa": "Non-OA",
+      "clickToSelect": "Click a journal to select it for the submission package"
+    },
+    "rebuttal": {
+      "title": "Rebuttal Materials & Export",
+      "hint": "Run RebuttalShow to view point-by-point responses here.",
+      "pointByPoint": "Point-by-Point Responses ({count})",
+      "export": "Export",
+      "reviewerComment": "Reviewer Comment",
+      "authorResponse": "Author Response",
+      "changeLocation": "Change Location",
+      "supportingEvidence": "Supporting Evidence"
+    }
+  },
+  "moduleAssistant": {
+    "title": "Module Assistant",
+    "context": "Context",
+    "clearChat": "Clear Chat",
+    "inputPlaceholder": "Ask a question...",
+    "send": "Send",
+    "sending": "Sending...",
+    "emptyHint": {
+      "topic": "I can help you understand the topic discovery process, explain novelty/feasibility/value scoring, or answer questions about research trends.",
+      "litreview": "I can help you understand literature search strategies, evidence table structure, or explain how to identify research gaps.",
+      "design": "I can help you understand the PICO framework, variable definition, or provide research design suggestions.",
+      "data": "I can help you understand analysis methods, visualization choices, or explain statistical outputs.",
+      "write": "I can help you understand IMRaD structure, academic writing conventions, or provide section organization suggestions.",
+      "submit": "I can help you understand journal matching logic, submission requirements, or interpret Fit-score.",
+      "rebuttal": "I can help you understand reviewer comment classification, response strategies, or revision table format."
+    },
+    "disclaimer": "AI assistant responses are for reference only. Please use professional judgment."
+  },
+  "wizard": {
+    "description": "Create a research project and configure its direction.",
+    "title": "Create New Project",
+    "step1Title": "Choose Discipline Category",
+    "step2Title": "Choose Research Method",
+    "step3Title": "Describe Research Direction",
+    "step4Title": "Name Your Project",
+    "socialSciences": "Social Sciences",
+    "socialSciencesDesc": "Education, Psychology, Sociology, Management, etc.",
+    "naturalSciences": "Natural Sciences",
+    "naturalSciencesDesc": "Medicine, Engineering, Computer Science, Biology, etc.",
+    "qualitative": "Qualitative",
+    "qualitativeDesc": "Interviews, case studies, textual analysis, etc.",
+    "quantitative": "Quantitative",
+    "quantitativeDesc": "Experiments, surveys, statistical analysis, etc.",
+    "mixed": "Mixed Methods",
+    "mixedDesc": "Combining qualitative and quantitative approaches",
+    "researchDirection": "Research Direction",
+    "researchDirectionPlaceholder": "Briefly describe your research direction and focus...",
+    "projectName": "Project Name",
+    "projectNamePlaceholder": "Give your project a name",
+    "back": "Back",
+    "next": "Next",
+    "create": "Create Project",
+    "creating": "Creating...",
+    "step1Label": "Discipline",
+    "step2Label": "Method",
+    "step3Label": "Direction",
+    "step4Label": "Name",
+    "summary": "Project Summary",
+    "summaryDiscipline": "Discipline",
+    "summaryMethod": "Method",
+    "summaryDirection": "Direction"
+  },
+  "tools": {
+    "title": "Standalone Tools",
+    "literatureAnalysis": "Literature Analysis",
+    "literatureAnalysisDesc": "Upload or paste paper text. AI extracts key themes, research methods, and gaps.",
+    "paperPolishing": "Paper Polishing",
+    "paperPolishingDesc": "Improve academic writing quality — fix grammar, syntax, and style.",
+    "journalSelection": "Journal Selection",
+    "journalSelectionDesc": "Match your abstract and keywords to the best journals, sorted by fit and ranking.",
+    "launch": "Launch",
+    "backToTools": "Back to Tools",
+    "sessionNote": "Session mode: results are not saved to a project."
+  },
+  "training": {
+    "manage": {
+      "title": "Training camps & class management",
+      "collabBanner": "Supabase collaborative mode: data is managed by the server and RLS.",
+      "loadError": "Could not load collaborative training programs. Check staff role, login, or network.",
+      "forbiddenPage": "Your account is not staff or a camp teaching assistant. Training camp management is unavailable.",
+      "forbiddenCreate": "Your account is not staff. Cannot create a training camp.",
+      "taBanner": "Teaching assistant mode: you can view progress, reports, and redacted exports for your camps, and review or nudge submissions. You cannot create/archive camps, invite or remove members, or edit the curriculum.",
+      "createProgram": "Create training camp",
+      "editProgram": "Edit training camp",
+      "programList": "Camps / classes",
+      "emptyPrograms": "No camps yet. Create one first.",
+      "classSummary": "Class summary",
+      "membersTitle": "Members & invites",
+      "memberCount": "Members: {count} (excluding removed).",
+      "archivedHint": "This camp is archived: new invites and submissions are blocked.",
+      "batchInvite": "Batch invite (one email per line, or comma-separated)",
+      "createSuccess": "Training camp created",
+      "createFailed": "Failed to create training camp. Please try again.",
+      "saveSuccess": "Training camp saved",
+      "saveFailed": "Save failed. Please try again.",
+      "inviteSuccess": "Invite processed: {email}",
+      "inviteFailed": "Failed to invite learner. Check network and try again.",
+      "removeSuccess": "Member removed",
+      "removeFailed": "Remove failed",
+      "roleUpdated": "Role updated",
+      "batchResult": "Batch invite finished: {ok} ok, {fail} failed",
+      "fields": {
+        "name": "Name",
+        "description": "Description",
+        "discipline": "Discipline",
+        "cohort": "Cohort",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "maxMembers": "Max members",
+        "status": "Status",
+        "ordinal": "Order",
+        "dueAt": "Due at",
+        "required": "Required",
+        "forceReview": "Force review",
+        "organization": "Organization / department"
+      },
+      "orgHint": "Librarians only manage camps in their organizations; global admins can span all orgs.",
+      "orgMembersTitle": "Organization members",
+      "orgMembersHint": "Add librarians to an organization so they can manage its camps. org_admin manages members; viewer is read-only.",
+      "orgMembersEmpty": "No members in this organization yet.",
+      "orgMemberAdded": "Organization member added",
+      "orgMemberRemoved": "Organization member removed",
+      "orgMemberFailed": "Organization member action failed",
+      "orgCreateHint": "Only global admins can create organizations (fails without permission).",
+      "orgCreateSuccess": "Organization created",
+      "orgCreateFailed": "Failed to create organization",
+      "orgRoles": {
+        "librarian": "Librarian",
+        "org_admin": "Org admin",
+        "viewer": "Viewer"
+      },
+      "placeholders": {
+        "name": "e.g. 2026 Spring AI Research Camp",
+        "email": "Learner email",
+        "staffEmail": "Staff email",
+        "orgName": "e.g. School of Foreign Languages",
+        "localLearner": "Anonymous learner id or name",
+        "batch": "alice@example.com\nbob@example.com"
+      },
+      "status": {
+        "draft": "Draft",
+        "active": "Active",
+        "archived": "Archived"
+      },
+      "role": {
+        "learner": "Learner",
+        "ta": "TA"
+      },
+      "tasksTitle": "Camp task curriculum",
+      "tasksHint": "Select MVP tasks for this camp, set order, due dates, and force-review. Empty config falls back to all 8 tasks.",
+      "tasksReadOnlyHint": "Read-only for teaching assistants: you can view the curriculum and class progress, but only staff can save changes.",
+      "tasksSaved": "Curriculum saved",
+      "progressTitle": "Class progress",
+      "progressEmpty": "No member progress yet.",
+      "nudgeFailed": "Nudge failed",
+      "nudgeSuccess": "Nudge stamped for active learners",
+      "reportTitle": "Class operations report",
+      "reportLoadError": "Could not load class report",
+      "exportTitle": "Data export",
+      "exportSuccess": "Export download started",
+      "exportFailed": "Export failed",
+      "export": {
+        "scope": "Scope",
+        "format": "Format",
+        "redact": "Redact IDs / emails",
+        "redactForced": "Redact IDs / emails (required for TAs)",
+        "members": "Members",
+        "submissions": "Submissions",
+        "reviews": "Reviews",
+        "gradebook": "Gradebook (LMS CSV)",
+        "lms": "LMS import format",
+        "lmsFormat": "LMS platform"
+      },
+      "lmsLinkTitle": "LMS / LTI AGS link",
+      "lmsLinkHint": "Configure a Canvas/Moodle developer key and AGS line item URL to push overall scores. Secrets stay server-side. Full browser LTI launch needs platform registration.",
+      "lmsEnabled": "Push enabled",
+      "lmsDisabled": "Push disabled",
+      "lmsSave": "Save LMS config",
+      "lmsSaveSuccess": "LMS config saved",
+      "lmsSaveFailed": "Failed to save LMS config",
+      "lmsDryRun": "Test token fetch",
+      "lmsPush": "Push grades to LMS",
+      "lmsDryRunOk": "Token OK (no scores posted)",
+      "lmsPushOk": "Pushed {count} score(s)",
+      "lmsPushFailed": "LMS push failed",
+      "lms": {
+        "platform": "Platform",
+        "authMethod": "Auth method",
+        "issuer": "Issuer",
+        "clientId": "Client ID",
+        "clientSecret": "Client Secret",
+        "tokenUrl": "Token URL",
+        "agsLineitemUrl": "AGS Line Item URL",
+        "deploymentId": "Deployment ID",
+        "enablePush": "Enable AGS push",
+        "privateKey": "Private Key PEM",
+        "secretSet": "saved",
+        "lastPush": "Last push: {status} · {at}"
+      },
+      "report": {
+        "activeMembers": "Active members",
+        "avgCompletion": "Avg completion",
+        "pendingReviews": "Pending reviews",
+        "avgWait": "Avg wait",
+        "funnelTitle": "Status funnel (required task cells)",
+        "taskRatesTitle": "Submit / approve rates by task",
+        "taskTableTitle": "Task details",
+        "colTask": "Task",
+        "submitRate": "Submit rate",
+        "approveRate": "Approve rate",
+        "avgScore": "Avg score",
+        "riskTitle": "At-risk learners",
+        "riskEmpty": "No high-risk learners (repeat revisions or escalations).",
+        "revisions": "{count} revisions",
+        "escalations": "{count} escalations"
+      },
+      "funnel": {
+        "notStarted": "Not started",
+        "draft": "Draft",
+        "submitted": "Submitted",
+        "needsRevision": "Needs revision",
+        "approved": "Approved",
+        "escalated": "Escalated"
+      },
+      "actions": {
+        "create": "Create",
+        "save": "Save changes",
+        "reset": "Clear form",
+        "invite": "Send invite",
+        "join": "Add to class",
+        "batchInvite": "Batch invite",
+        "remove": "Remove",
+        "saveTasks": "Save curriculum",
+        "nudgeAll": "Nudge all",
+        "refresh": "Refresh",
+        "export": "Export",
+        "uploadPack": "Upload task pack",
+        "issueCerts": "Issue certificates for eligible learners",
+        "openAnalytics": "Ops analytics v2",
+        "verifyCert": "Verify certificate",
+        "addOrgMember": "Add org member",
+        "createOrg": "Create organization"
+      },
+      "packsTitle": "Custom training task packs",
+      "packsHint": "After upload, use pack.task ids in curriculum (e.g. demo-pack.lit-note).",
+      "packsBuiltin": "Builtin tasks {count}",
+      "packsCustom": "Custom packs {count}",
+      "packInvalidJson": "Invalid JSON",
+      "packUploadFailed": "Task pack upload failed",
+      "packUploadSuccess": "Task pack saved",
+      "certIssueFailed": "Certificate issue failed",
+      "certIssueResult": "Issued {issued}, skipped {skipped}",
+      "calendarTitle": "Due calendar",
+      "calendarLoadError": "Could not load calendar",
+      "calendar": {
+        "taskDue": "Due",
+        "start": "Start",
+        "end": "End"
+      },
+      "realtime": {
+        "submission": "Submission {status} · task {task}",
+        "review": "New staff review recorded"
+      },
+      "inviteErrors": {
+        "ALREADY_ENROLLED": "This learner is already enrolled.",
+        "PROGRAM_ARCHIVED": "Camp is archived; invites are blocked.",
+        "PROGRAM_FULL": "Camp is full.",
+        "PROGRAM_NOT_FOUND": "Camp not found.",
+        "INVITE_FAILED": "Invite failed. Check email or Supabase mail settings.",
+        "USER_EXISTS_LOOKUP_FAILED": "User may already exist but lookup failed. Retry later.",
+        "INVALID_EMAIL": "Invalid email.",
+        "VALIDATION_ERROR": "Invalid request payload.",
+        "GENERIC": "Invite failed ({code})."
+      },
+      "consentAuditTitle": "Camp redaction consent audit",
+      "consentAuditHint": "Learners must confirm redaction when submitting training tasks. Only consent metadata and scan counts are shown — no raw answers.",
+      "consentLoadError": "Could not load consent audit",
+      "consentEmpty": "No submit consents yet.",
+      "consentRedacted": "Redaction confirmed",
+      "consentCleanScan": "Clean scan",
+      "consentSensitiveAtScan": "Sensitive hits {count}",
+      "consentStats": {
+        "total": "Consents {count}",
+        "submits": "Submit consents {count}",
+        "redacted": "Redacted {count}",
+        "sensitiveHits": "Had sensitive {count}"
+      },
+      "packsVisualTitle": "Visual curriculum (built-in tasks)",
+      "packsVisualHint": "Pick and order built-in MVP tasks to generate pack JSON; advanced JSON paste still works.",
+      "packsApplyOrder": "Up",
+      "packsApplyDown": "Down",
+      "packsGenerateJson": "Generate pack JSON",
+      "packsSelectTasks": "Select built-in tasks"
+    },
+    "review": {
+      "title": "Staff review queue",
+      "collabHint": "Supabase collaborative review: staff only.",
+      "localHint": "Shows learner submissions awaiting review.",
+      "loadError": "Could not load the review queue. Check permissions, login, or network.",
+      "forbidden": "Your account is not staff. Review queue is unavailable.",
+      "empty": "No submissions awaiting review.",
+      "taskFallback": "Training task",
+      "noAnswers": "(no answers)",
+      "reflection": "Reflection",
+      "evidence": "Evidence cards: {count}",
+      "noEvidence": "No evidence cards attached.",
+      "feedbackPlaceholder": "Staff feedback",
+      "score": "Score",
+      "claimedBadge": "Claimed",
+      "metaLine": "Learner: {learner} · Waiting: {wait}",
+      "reviewSuccess": "Review submitted",
+      "reviewFailed": "Review failed",
+      "claimFailed": "Claim failed",
+      "claimed": "Submission claimed",
+      "unclaimed": "Claim released",
+      "filters": {
+        "task": "Task",
+        "allTasks": "All tasks",
+        "status": "Status",
+        "pending": "Pending (submitted)",
+        "submitted": "Submitted",
+        "needsReview": "Needs revision",
+        "escalated": "Escalated",
+        "completed": "Completed",
+        "all": "All",
+        "peerStatus": "Peer status",
+        "peerAny": "Any peer state",
+        "peerAwaiting": "Awaiting peer",
+        "peerDone": "Peer done",
+        "peerSkipped": "Peer skipped",
+        "sort": "Sort",
+        "oldest": "Longest wait first",
+        "newest": "Recently updated first"
+      },
+      "templates": {
+        "approved": "Template: approve",
+        "needsRevision": "Template: revise",
+        "escalated": "Template: escalate"
+      },
+      "actions": {
+        "refresh": "Refresh",
+        "claim": "Claim",
+        "unclaim": "Unclaim",
+        "approve": "Approve",
+        "needsRevision": "Request revision",
+        "escalate": "Escalate",
+        "prev": "Previous",
+        "next": "Next"
+      },
+      "pageLabel": "Page {page}/{totalPages} · {total} total"
+    },
+    "analytics": {
+      "title": "Training ops analytics",
+      "subtitle": "Cross-camp comparison, reviewer KPIs, and explainable risk heatmaps.",
+      "from": "From",
+      "to": "To",
+      "refresh": "Refresh",
+      "loadError": "Could not load analytics",
+      "forbidden": "You do not have access to ops analytics.",
+      "empty": "No camps in this window.",
+      "crossTitle": "Cross-camp completion / pending",
+      "reviewerTitle": "Reviewer KPIs",
+      "noReviewers": "No reviews yet.",
+      "heatmapTitle": "Risk heatmap",
+      "heatmapHint": "Color encodes explainable risk (revisions/escalations/sensitive/overdue).",
+      "kpi": {
+        "programs": "Camps",
+        "members": "Active members",
+        "pending": "Pending reviews",
+        "completion": "Avg completion"
+      },
+      "chart": {
+        "completion": "Completion %",
+        "pending": "Pending"
+      },
+      "reviewer": {
+        "total": "Reviews {count}",
+        "approved": "Approved {count}",
+        "revision": "Revisions {count}",
+        "escalated": "Escalated {count}",
+        "avgScore": "Avg {score}"
+      }
+    },
+    "certificate": {
+      "verifyTitle": "Verify completion certificate",
+      "verifyHint": "Paste the certificate content_hash (SHA-256) to verify. Only redacted metadata is shown.",
+      "hashLabel": "Certificate hash",
+      "verifyAction": "Verify",
+      "verifyFailed": "Verification request failed",
+      "valid": "Certificate is valid",
+      "invalid": "No matching certificate or hash mismatch",
+      "program": "Camp",
+      "learner": "Learner",
+      "completedAt": "Completed at",
+      "tasks": "Tasks completed",
+      "issuer": "Issuer"
+    },
+    "peer": {
+      "title": "Peer review",
+      "hint": "Anonymous same-camp peer review. You will not see the author's real name. Optionally link evidence cards.",
+      "refresh": "Refresh",
+      "loadError": "Could not load peer queue",
+      "empty": "No peer reviews waiting for you.",
+      "answer": "Answer {n}",
+      "reflection": "Reflection",
+      "evidence": "Evidence cards (optional link)",
+      "feedbackPlaceholder": "Feedback for your peer (be specific and respectful)",
+      "scorePlaceholder": "Optional score 0–100",
+      "approve": "Peer approve",
+      "needsRevision": "Suggest revision",
+      "submitSuccess": "Peer review submitted",
+      "submitFailed": "Peer review failed"
+    },
+    "learner": {
+      "title": "AI research coach workspace",
+      "subtitle": "Coach mode: judge, verify, and reflect before relying on AI output.",
+      "enrollmentError": "Could not load collaborative enrollment. Check login or network.",
+      "enrolledNeedProject": "Joined “{name}”. Create a research project before submitting.",
+      "enrolledSync": "Joined “{name}”. Submissions sync to the remote camp.",
+      "notEnrolled": "Not enrolled yet. Wait for a staff invitation.",
+      "campFallback": "training camp",
+      "needProject": "Create a research project first, then open the training workspace.",
+      "taskList": "MVP training tasks",
+      "completionRate": "Completion {rate}%",
+      "loadingTask": "Loading task",
+      "openAgent": "Open linked agent",
+      "status": {
+        "not_started": "Not started",
+        "in_progress": "In progress",
+        "submitted": "Submitted",
+        "needs_review": "Needs review",
+        "reviewed": "Reviewed",
+        "completed": "Completed",
+        "approved": "Approved",
+        "needs_revision": "Needs revision",
+        "escalated": "Escalated",
+        "overdue": "Overdue"
+      },
+      "feedbackTitle": "Staff feedback",
+      "scoreLabel": "Score {score}",
+      "resubmitHint": "Revision requested: update your answers from the feedback, then resubmit.",
+      "answerPlaceholder": "Write your judgment and evidence",
+      "reflection": "My edits / verification notes",
+      "sensitiveHint": "Content may include sensitive personal data — redact before submit.",
+      "sensitiveBlocked": "Possible phone, email, or ID detected. Use “Mask all” before submitting.",
+      "maskApplied": "Masked {count} sensitive span(s). Review before submit.",
+      "consentFailed": "Could not record redaction consent. Sign in again and retry.",
+      "archivedBlocked": "This camp is archived; submissions are blocked.",
+      "submitFailed": "Submit failed",
+      "submittedRemote": "Task submitted to the remote camp",
+      "submittedLocal": "Task submitted: {id}",
+      "draftSaved": "Draft saved",
+      "saveDraft": "Save draft",
+      "submit": "Submit training task",
+      "resubmit": "Resubmit after feedback",
+      "evidenceTitle": "Evidence verification cards",
+      "claimPlaceholder": "AI claim to verify",
+      "excerptPlaceholder": "Source excerpt or DOI",
+      "addEvidence": "Add evidence card",
+      "evidenceSaved": "Evidence card saved — set verification status.",
+      "verify": {
+        "unverified": "Unverified",
+        "verified": "Supported",
+        "unsupported": "Unsupported",
+        "incorrect": "Wrong source"
+      },
+      "stepProgress": "Completed {done}/{total} steps",
+      "showExample": "Show example",
+      "hideExample": "Hide example",
+      "stepDone": "Done",
+      "stepTodo": "Todo",
+      "checklistTitle": "Before you submit",
+      "checklistSteps": "All steps meet the minimum content",
+      "checklistReflection": "Edit / verification notes filled",
+      "checklistSensitive": "No unredacted sensitive data",
+      "checklistEvidence": "Evidence cards recommended for review tasks",
+      "checklistEvidenceRequired": "Add at least one evidence card",
+      "fillSample": "Fill sample (editable)",
+      "finalCheckTitle": "Final question checks",
+      "finalCheck": {
+        "minLength": "Long enough (≥20 chars)",
+        "hasRelation": "Has a question/relation cue (how/what/是否…)",
+        "notSlogan": "Not a pure slogan or tiny stance line"
+      },
+      "rubricTitle": "Rubric (estimate)",
+      "rubricSteps": "Steps",
+      "rubricReflection": "Reflection",
+      "rubricEvidence": "Evidence",
+      "rubricReview": "Staff score",
+      "rubricEstimated": "Est. {score}",
+      "rubricReviewPending": "Pending review",
+      "agentRunsTitle": "Linked agent runs",
+      "agentRunsEmpty": "No runs linked yet. Open the agent, then link the latest run.",
+      "linkLatestRun": "Link latest run",
+      "returnToTraining": "Back to training task",
+      "autoSaved": "Draft auto-saved",
+      "coachTabAnswer": "Answers",
+      "coachTabCoach": "Coach",
+      "openTask": "Open task"
+    },
+    "report": {
+      "title": "Personal training report",
+      "exportJson": "Export JSON",
+      "exportPdf": "Print / PDF",
+      "radarTitle": "Competency radar",
+      "taskTableTitle": "Task details",
+      "colTask": "Task",
+      "colStatus": "Status",
+      "colDecision": "Review",
+      "colScore": "Score",
+      "feedbackTitle": "Recent staff feedback",
+      "feedbackEmpty": "No staff feedback yet.",
+      "footnote": "Built from submissions, reflections, and reviews. Incomplete tasks score 0. In collaborative mode, status and feedback come from the remote camp."
+    },
+    "tasks": {
+      "research-question": {
+        "steps": {
+          "0": {
+            "title": "Define object and setting",
+            "prompt": "Who, in what context, with what boundaries?",
+            "placeholder": "e.g. undergrads / course papers / exclude exams…",
+            "example": "Object: …; Setting: …; Out of scope: …"
+          },
+          "1": {
+            "title": "Compare three candidate questions",
+            "prompt": "Compare novelty, value, and feasibility.",
+            "placeholder": "Q1/Q2/Q3 + three dimensions + tentative choice",
+            "example": "Q1: … novelty/value/feasibility…"
+          },
+          "2": {
+            "title": "Keep or drop rationale",
+            "prompt": "Why keep one and drop others; note one human edit.",
+            "placeholder": "Keep … because …; Drop …; I changed …",
+            "example": "Keep Q2 because …; Drop Q1/Q3 …"
+          },
+          "3": {
+            "title": "Final research question",
+            "prompt": "One searchable question with object and relation.",
+            "placeholder": "In …, how does … affect …?",
+            "example": "In courses that allow generative AI, how do prompt strategies affect citation accuracy?"
+          }
+        }
+      },
+      "retrieval-query": {
+        "steps": {
+          "0": {
+            "title": "Split core concepts",
+            "prompt": "Extract 2–4 concepts from the question.",
+            "placeholder": "Concept A / B / C",
+            "example": "generative AI; academic writing; citation accuracy"
+          },
+          "1": {
+            "title": "English + synonyms",
+            "prompt": "CN/EN and synonyms per concept.",
+            "placeholder": "CN — EN — synonyms",
+            "example": "生成式AI — generative AI — LLM"
+          },
+          "2": {
+            "title": "Build search strings",
+            "prompt": "Boolean/field queries (CN/EN).",
+            "placeholder": "(A OR A') AND (B OR B')",
+            "example": "(\"generative AI\" OR LLM) AND citation"
+          },
+          "3": {
+            "title": "Log query adjustments",
+            "prompt": "Why you changed terms or databases.",
+            "placeholder": "Recall too broad → added …",
+            "example": "Added academic writing to focus on education."
+          }
+        }
+      },
+      "evidence-verification": {
+        "steps": {
+          "0": {
+            "title": "Mark claims to verify",
+            "prompt": "Paste AI sentences that need checking.",
+            "placeholder": "“…” — to verify",
+            "example": "Claim: method X is optimal (unverified)."
+          },
+          "1": {
+            "title": "Bind sources",
+            "prompt": "DOI/title + excerpt.",
+            "placeholder": "DOI:… excerpt:…",
+            "example": "DOI 10.x/… p.12: “…”"
+          },
+          "2": {
+            "title": "Evidence strength",
+            "prompt": "Supported / partial / not; why.",
+            "placeholder": "Partial: …",
+            "example": "Unsupported: paper studies Y, not X."
+          },
+          "3": {
+            "title": "Revise baseless claims",
+            "prompt": "Edit or delete; explain.",
+            "placeholder": "Before→after; reason…",
+            "example": "Removed “optimal”; wrote “better on sample X”."
+          }
+        }
+      },
+      "research-design": {
+        "steps": {
+          "0": {
+            "title": "Choose method",
+            "prompt": "Method type and fit.",
+            "placeholder": "content analysis / quasi-experiment…",
+            "example": "Content analysis of assignments + prompt logs."
+          },
+          "1": {
+            "title": "Variables or materials",
+            "prompt": "IVs, DVs, or materials.",
+            "placeholder": "IV:… DV:…",
+            "example": "IV: prompt strategy; DV: accuracy & hallucination rate"
+          },
+          "2": {
+            "title": "Sample and limits",
+            "prompt": "Source, size, external validity.",
+            "placeholder": "n=… from …; limits…",
+            "example": "~120 course papers; not theses."
+          },
+          "3": {
+            "title": "Feasibility",
+            "prompt": "Time, access, ethics, resources.",
+            "placeholder": "Approval…; timeline…",
+            "example": "Anonymized analysis allowed; 4 weeks coding."
+          }
+        }
+      },
+      "data-governance": {
+        "steps": {
+          "0": {
+            "title": "Data provenance",
+            "prompt": "Where data comes from; identifiers.",
+            "placeholder": "Source…; IDs…",
+            "example": "LMS export; student ID + email."
+          },
+          "1": {
+            "title": "Privacy risks",
+            "prompt": "Risks and affected parties.",
+            "placeholder": "Risk1…",
+            "example": "IDs re-identify; chat may be sensitive."
+          },
+          "2": {
+            "title": "Copyright risks",
+            "prompt": "Upload/share vs licenses.",
+            "placeholder": "Full PDF cannot…",
+            "example": "Publisher PDF not shareable; keep metadata/excerpts."
+          },
+          "3": {
+            "title": "Redaction plan",
+            "prompt": "Delete/hash/aggregate steps.",
+            "placeholder": "1 remove IDs 2 hash email…",
+            "example": "De-identify → hash email → class-level aggregate."
+          }
+        }
+      },
+      "responsible-writing": {
+        "steps": {
+          "0": {
+            "title": "Paragraph structure",
+            "prompt": "Claim–evidence–limit structure.",
+            "placeholder": "claim → evidence → hedge",
+            "example": "Claim, two evidences, boundary, summary."
+          },
+          "1": {
+            "title": "Mark AI involvement",
+            "prompt": "What AI did vs what you did.",
+            "placeholder": "AI: outline; me: arguments",
+            "example": "AI outline; I rewrote arguments and citations."
+          },
+          "2": {
+            "title": "Fact check",
+            "prompt": "Key facts verified against sources.",
+            "placeholder": "Figure X checked vs Y",
+            "example": "Sample size matches methods section."
+          },
+          "3": {
+            "title": "Author edit notes",
+            "prompt": "What you changed vs AI draft and why.",
+            "placeholder": "Removed hype; added hedges…",
+            "example": "Removed “significantly better”; aligned with null result."
+          }
+        }
+      },
+      "journal-decision": {
+        "steps": {
+          "0": {
+            "title": "Manuscript theme",
+            "prompt": "One-line theme + contribution type.",
+            "placeholder": "Theme…; empirical/review…",
+            "example": "GenAI citation accuracy in undergrad writing."
+          },
+          "1": {
+            "title": "Compare three journals",
+            "prompt": "Scope, APC, cycle, risk.",
+            "placeholder": "J1/J2/J3 scope|APC|time|risk",
+            "example": "J1 ed-tech fit high; J2 too broad; J3 check warnings."
+          },
+          "2": {
+            "title": "Check author guidelines",
+            "prompt": "Length, format, data, preprint.",
+            "placeholder": "From website: …",
+            "example": "4–7k words; open data encouraged."
+          },
+          "3": {
+            "title": "Final choice",
+            "prompt": "Primary + backup and why.",
+            "placeholder": "Primary… because…",
+            "example": "Primary J1: fit, no warning; backup J2."
+          }
+        }
+      },
+      "rebuttal-action": {
+        "steps": {
+          "0": {
+            "title": "Classify reviews",
+            "prompt": "Valid / misunderstanding / unacceptable.",
+            "placeholder": "R1 valid; R2 misunderstanding…",
+            "example": "R1 methods detail missing → valid."
+          },
+          "1": {
+            "title": "Action plan",
+            "prompt": "Executable change per item.",
+            "placeholder": "R1→add … in §3",
+            "example": "R1: coding manual appendix; R2: clarify scope."
+          },
+          "2": {
+            "title": "Bind evidence/location",
+            "prompt": "Section/figure/citation anchors.",
+            "placeholder": "§4.2 Table 2; Appendix A",
+            "example": "Table 2 column; Appendix A examples."
+          },
+          "3": {
+            "title": "Author confirmation",
+            "prompt": "Polite, specific, no over-promise.",
+            "placeholder": "Read letter; no unchecked promises",
+            "example": "Removed “we will cite reviewer paper”."
+          }
+        }
+      }
+    }
+  }
+}

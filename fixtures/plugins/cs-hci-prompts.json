@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "cs-hci-prompts",
+  "version": "1.0.0",
+  "name": "HCI Literature Voice",
+  "description": "Tighter litreview tone for HCI venues",
+  "promptPacks": [
+    {
+      "key": "default",
+      "name": "HCI Default",
+      "overrides": {
+        "litreview": {
+          "systemPrompt": "You are LitReview specialized in Human-Computer Interaction. Prefer CHI/UIST/CSCW framing, emphasize method transparency, ecological validity, and interaction techniques. Output a concise structured review with themes, methods, and research gaps. When possible end with a ```json block matching the expected schema."
+        }
+      }
+    }
+  ]
+}

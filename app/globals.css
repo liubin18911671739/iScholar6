@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ───────────────────────────────────────────────────────────────
+   iScholar · IBM Technology Blue theme
+   Deep-space navy + IBM tech blue (#0f62fe) accents, per-stage
+   accent colors, and a subtle starfield. Tokens are space-separated
+   HSL components (no hsl() wrapper) so both Tailwind utilities and
+   inline hsl(var(--token)) styles in recharts keep working.
+   ─────────────────────────────────────────────────────────────── */
+
+@layer base {
+  /* ── IBM Technology Blue Dark Theme (default & only) ─────────── */
+  :root {
+    --background: 222 58% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 50% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 50% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 216 98% 52%;            /* IBM Technology Blue #0f62fe */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 219 48% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 220 42% 17%;
+    --muted-foreground: 214 36% 82%;
+    --accent: 216 78% 24%;
+    --accent-foreground: 214 100% 88%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 216 42% 25%;
+    --input: 216 44% 20%;
+    --ring: 216 98% 52%;
+    --chart-1: 216 98% 52%;
+    --chart-2: 211 100% 64%;
+    --chart-3: 205 100% 74%;
+    --chart-4: 220 84% 70%;
+    --chart-5: 199 89% 78%;
+    --star-opacity: 0.32;
+    --star-color: rgba(213, 232, 255, 0.6);
+  }
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.markdown-content h1 { font-size: 1.25rem; }
+.markdown-content h2 { font-size: 1.125rem; }
+.markdown-content h3 { font-size: 1rem; }
+.markdown-content p { margin: 0.55rem 0; }
+.markdown-content strong { font-weight: 700; color: hsl(var(--foreground)); }
+.markdown-content ul { list-style: disc; padding-left: 1.25rem; }
+.markdown-content ol { list-style: decimal; padding-left: 1.25rem; }
+.markdown-content li { margin: 0.2rem 0; }
+.markdown-content blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 0.75rem; color: hsl(var(--muted-foreground)); }
+.markdown-content code { border-radius: 0.25rem; background: hsl(var(--muted)); padding: 0.1rem 0.3rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; }
+.markdown-content pre { overflow-x: auto; border-radius: 0.5rem; background: hsl(var(--muted)); padding: 0.75rem; }
+.markdown-content pre code { background: transparent; padding: 0; }
+.markdown-content a { color: hsl(var(--primary)); text-decoration: underline; }
+.markdown-content table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9em; }
+.markdown-content th,
+.markdown-content td { border: 1px solid hsl(var(--border)); padding: 0.4rem 0.55rem; text-align: left; vertical-align: top; }
+.markdown-content th { background: hsl(var(--muted)); font-weight: 700; }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* Cosmic backdrop: layered deep blue glows + a tiled starfield.
+     Apply to a positioned, overflow-hidden container. */
+  .cosmic-bg {
+    position: relative;
+    isolation: isolate;
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(900px 520px at 12% -8%, hsl(216 98% 52% / 0.18), transparent 60%),
+      radial-gradient(820px 480px at 100% 0%, hsl(211 100% 64% / 0.12), transparent 58%),
+      radial-gradient(700px 460px at 88% 100%, hsl(216 98% 52% / 0.10), transparent 60%);
+  }
+  .cosmic-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.85), transparent 50%),
+      radial-gradient(1px 1px at 28% 62%, rgba(255, 255, 255, 0.6), transparent 50%),
+      radial-gradient(1.4px 1.4px at 47% 32%, rgba(120, 170, 255, 0.65), transparent 50%),
+      radial-gradient(1px 1px at 63% 12%, rgba(255, 255, 255, 0.55), transparent 50%),
+      radial-gradient(1px 1px at 78% 74%, rgba(255, 255, 255, 0.65), transparent 50%),
+      radial-gradient(1.6px 1.6px at 88% 40%, rgba(110, 165, 255, 0.58), transparent 50%),
+      radial-gradient(1px 1px at 8% 84%, rgba(255, 255, 255, 0.5), transparent 50%),
+      radial-gradient(1.2px 1.2px at 54% 88%, rgba(255, 255, 255, 0.55), transparent 50%);
+    background-size: 720px 720px;
+    background-repeat: repeat;
+    opacity: var(--star-opacity);
+  }
+
+  /* Glassy panel used by cards floating over the starfield */
+  .cosmic-panel {
+    background-color: hsl(var(--card) / 0.94);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.95);
+  }
+
+  /* Soft outer glow for hero/CTA elements */
+  .glow-cyan {
+    box-shadow: 0 0 0 1px hsl(216 98% 52% / 0.45), 0 8px 40px -8px hsl(216 98% 52% / 0.55);
+  }
+  .glow-blue {
+    box-shadow: 0 0 0 1px hsl(216 98% 52% / 0.35), 0 8px 40px -8px hsl(211 100% 64% / 0.42);
+  }
+}
+
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 18px hsl(216 98% 52% / 0.55);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom scrollbar for scroll areas */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.6);
+  background-clip: content-box;
+}

@@ -1,0 +1,9 @@
+{
+  "pythonVersion": "3.12",
+  "include": ["services/backend/app", "services/backend/tests", "services/eval"],
+  "reportMissingImports": "none",
+  "executionEnvironments": [
+    { "root": "services/backend", "extraPaths": ["services/backend"] },
+    { "root": "services/eval", "extraPaths": ["services/eval"] }
+  ]
+}

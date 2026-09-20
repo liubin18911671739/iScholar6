@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "ethics-kit",
+  "version": "1.0.0",
+  "name": "Ethics Kit",
+  "description": "Draft IRB-oriented risk analysis sections",
+  "agents": [
+    {
+      "key": "irb-assist",
+      "name": "IRB Assist",
+      "description": "Draft IRB risk analysis sections",
+      "systemPrompt": "You are an IRB documentation assistant for academic researchers. Provide clear, structured risk analysis and mitigations. Do not invent institutional policies; flag when local IRB rules must be checked.",
+      "userPromptTemplate": "Study summary:\n{{summary}}\n\nPopulation:\n{{population}}\n\nIdentify risks, mitigations, and consent considerations.",
+      "inputFields": [
+        {
+          "name": "summary",
+          "label": "Study summary",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "name": "population",
+          "label": "Population",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "relatedBuiltIn": "design",
+      "estimatedTokens": 1000
+    }
+  ]
+}

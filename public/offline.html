@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iScholar — 离线模式</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: hsl(222 47% 6%);
+      color: hsl(210 40% 98%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: hsl(222 45% 8% / 0.72);
+      backdrop-filter: blur(10px);
+      border: 1px solid hsl(217 33% 17%);
+      border-radius: 0.75rem;
+      padding: 2rem;
+      max-width: 28rem;
+      text-align: center;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p { color: hsl(215 20% 65%); font-size: 0.875rem; line-height: 1.6; }
+    .icon { font-size: 3rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔌</div>
+    <h1>当前处于离线状态</h1>
+    <p>
+      iScholar 的本地数据（项目、论文、草稿）存储在浏览器中，离线时仍可访问。
+      重新连接网络后将自动恢复在线功能。
+    </p>
+  </div>
+</body>
+</html>
