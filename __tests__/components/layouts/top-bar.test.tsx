@@ -34,9 +34,8 @@ function renderWithIntl(ui: React.ReactElement) {
   );
 }
 
-const { mockPush, mockLogout } = vi.hoisted(() => ({
+const { mockPush } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockLogout: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -44,9 +43,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/projects/test-proj/topic",
 }));
 
-vi.mock("@/lib/local/auth", () => ({
-  logout: mockLogout,
-  isAuthenticated: () => true,
+vi.mock("@/lib/supabase/browser", () => ({
+  createSupabaseBrowserClient: () => null,
 }));
 
 vi.mock("lucide-react", () => ({
@@ -81,7 +79,7 @@ import { TopBar } from "@/components/layouts/top-bar";
 describe("TopBar", () => {
   it("renders the Local indicator", () => {
     renderWithIntl(React.createElement(TopBar));
-    expect(screen.getByText("本地")).toBeInTheDocument();
+    expect(screen.getByText("本地用户")).toBeInTheDocument();
   });
 
   it("calls onMenuToggle when menu button is clicked", () => {

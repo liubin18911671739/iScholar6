@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://ischolar:ischolar@localhost:5432/ischolar"
     redis_url: str = "redis://localhost:6379/0"
 
+    # Filesystem volume for attachment/script blobs (see compose `storage` volume).
+    storage_dir: str = "/data/storage"
+
     cors_origins: str = "http://localhost:3000"
 
     # Shared secret used to sign the identity forwarded from the web container.

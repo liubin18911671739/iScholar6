@@ -17,9 +17,14 @@ import { createSupabaseBrowserClient } from "./browser";
 import type { LocalAgentRun } from "@/lib/local/db";
 import { DEXIE_TO_REMOTE_TABLE, toRemoteRecord } from "./field-map";
 
-/** @deprecated Always true — Supabase is the sole data layer. Remove after all callers migrated. */
+/**
+ * Whether Supabase collaborative features are enabled.
+ *
+ * Env-driven (`NEXT_PUBLIC_COLLABORATIVE_MODE=true`), matching Playwright and
+ * the legacy browser-local mode. The target platform removes this entirely.
+ */
 export function isCollaborativeMode() {
-  return true;
+  return process.env.NEXT_PUBLIC_COLLABORATIVE_MODE === "true";
 }
 
 /** Return the browser Supabase client used for collaborative features. */

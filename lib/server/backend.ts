@@ -3,8 +3,6 @@
 import { createHmac } from "crypto";
 import { auth } from "@/lib/auth";
 
-const SIGNATURE_WINDOW_SECONDS = 300;
-
 /** Returns signed backend identity headers for the current Auth.js user. */
 export async function backendIdentityHeaders(): Promise<Record<string, string> | null> {
   const session = await auth();

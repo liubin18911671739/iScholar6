@@ -1,8 +1,8 @@
-# iScholar v6.0
+# icholar v6.0
 
 AI 原生学术科研平台 —— 从研究选题到论文投稿与返修，用 **7 大专业 AI 智能体** 陪伴研究者走完整个学术生命周期，并内置 **AI 科研教练训练 MVP**。
 
-> ⚠️ **架构重构进行中。** 平台正在从「浏览器本地优先（Dexie/IndexedDB）+ 可选 Supabase 协作」迁移到 **全 Docker 平台**：Next.js 薄 BFF + Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。目标与分阶段状态以 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) 为准。当前仓库中两套栈并存，`doc/` 下的文档描述的是**目标架构**，历史实现见各文档附录。
+> ⚠️ **架构重构进行中。** 目标平台为全 Docker 架构：Next.js 薄 BFF + Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。当前仓库中两套栈并存——旧栈（Dexie/IndexedDB + Supabase + 浏览器直连 DeepSeek）仍在服务 7 大智能体与训练营，新栈（`services/backend`）已具备可运行的领域 / Agent 纵向切片。`doc/` 描述的是**目标架构**，历史实现见各文档附录；工程执行状态见 [`TODO.md`](./TODO.md)。
 
 ---
 
@@ -34,6 +34,19 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 ---
 
+## 当前实现状态（2026-09-24 实测）
+
+| 区域 | 状态 | 说明 |
+| --- | --- | --- |
+| 新后端 `services/backend` | 🟢 可运行切片 | `/v1/healthz` `/v1/readyz` `/v1/me` `/v1/data/projects` `/v1/agent/*`（线程、运行、SSE 事件流、resume / cancel）、HMAC 服务身份（±300s）、Alembic 迁移、`AgentHarness`、LangGraph + Postgres checkpointer、worker（`SKIP LOCKED` 租约）均已实现 |
+| 认证与路由守卫 | 🟢 | Auth.js（Credentials + Postgres `users`）；Edge-safe `lib/auth.config.ts` + `middleware.ts` 守卫 `/dashboard|/projects|/settings|/tools|/training`（未登录 307 → `/login`） |
+| Agent 模型能力 | 🔴 未接入 | 图目前只调用 Crossref（`scholar.search`）→ 产出草稿 → `interrupt` 等待审批；DeepSeek `bind_tools` / 流式尚未接入 |
+| Web → 新后端 | 🔴 未切换 | `app/api/agent/[...path]` 代理已就位，但 UI 仍走旧链路 `/api/agents/[agent]` 直连 DeepSeek；计划中的 `AGENT_RUNTIME` 开关未实现 |
+| 旧栈（Dexie + Supabase） | 🟡 仍在线 | 7 智能体、训练营、插件、审计账本等仍依赖 `lib/local/*`、`lib/supabase/*` |
+| 质量门禁 | 🟢 绿（E2E 除外） | `pnpm exec tsc --noEmit` / `pnpm lint` / `pnpm vitest run`（272 用例）/ `pnpm build` / 后端 `ruff check` / `pytest` 均通过；仅 `pnpm test:e2e` 仍红——E2E 助手尚未适配 Auth.js 鉴权，详见 [`TODO.md`](./TODO.md) 的「已知问题与阻断项」 |
+
+---
+
 ## 特性
 
 - **7 大科研智能体** — TopicScout、LitReview、ResearchDesigner、DataPilot、IMRaDWriter、SubmitMatch、RebuttalShow
@@ -53,23 +66,24 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 ## 技术栈（目标）
 
-| 层 | 技术 |
-| --- | --- |
-| Web 框架 | Next.js 14（App Router）+ TypeScript（strict） |
-| Web 认证 | Auth.js（NextAuth v5，Credentials + PostgreSQL） |
-| Web 数据获取 | TanStack React Query（经 BFF 代理后端） |
-| BFF | `app/api/agent/[...path]` + `lib/server/backend.ts`（HMAC 签名） |
-| 后端 | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic |
-| Agent 运行时 | LangGraph + langgraph-checkpoint-postgres + langchain-openai |
-| 数据库 | PostgreSQL 16 + pgvector（Alembic 迁移） |
-| 缓存 / 限流 | Redis 7 |
-| AI 模型 | DeepSeek `deepseek-v4-flash`（回退 `deepseek-chat`） |
-| 反向代理 | Caddy 2（TLS + SSE 反缓冲） |
-| UI | Tailwind CSS + shadcn/ui（Radix primitives） |
-| 状态 | Zustand（locale）+ React Query |
-| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题 |
-| 编辑器 | Tiptap + KaTeX + Markdown 转换 |
-| 测试 | Vitest（前端）+ Playwright（E2E）+ pytest（后端） |
+
+| 层            | 技术                                                             |
+| ------------- | ---------------------------------------------------------------- |
+| Web 框架      | Next.js 14（App Router）+ TypeScript（strict）                   |
+| Web 认证      | Auth.js（NextAuth v5，Credentials + PostgreSQL）                 |
+| Web 数据获取  | TanStack React Query（经 BFF 代理后端）                          |
+| BFF           | `app/api/agent/[...path]` + `lib/server/backend.ts`（HMAC 签名） |
+| 后端          | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic            |
+| Agent 运行时  | LangGraph + langgraph-checkpoint-postgres + langchain-openai     |
+| 数据库        | PostgreSQL 16 + pgvector（Alembic 迁移）                         |
+| 缓存 / 限流   | Redis 7                                                          |
+| AI 模型       | DeepSeek`deepseek-v4-flash`（回退 `deepseek-chat`）              |
+| 反向代理      | Caddy 2（TLS + SSE 反缓冲）                                      |
+| UI            | Tailwind CSS + shadcn/ui（Radix primitives）                     |
+| 状态          | Zustand（locale）+ React Query                                   |
+| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题                            |
+| 编辑器        | Tiptap + KaTeX + Markdown 转换                                   |
+| 测试          | Vitest（前端）+ Playwright（E2E）+ pytest（后端）                |
 
 ---
 
@@ -91,7 +105,7 @@ pnpm docker:up                # 构建并启动 web/backend/worker/postgres/redi
 docker compose config         # 修改 compose 前先校验
 ```
 
-- Web：<http://localhost:3000>（Caddy 代理在 80/443）
+- Web：[http://localhost:3000](http://localhost:3000)（Caddy 代理在 80/443）
 - 后端健康检查：`GET /v1/healthz`、`GET /v1/readyz`
 - `migrate` 服务会在 backend/worker 启动前自动执行 `alembic upgrade head`
 
@@ -110,9 +124,9 @@ pnpm dev                      # 宿主机运行 web，指向后端容器
 
 ```bash
 cd services/backend
-uv pip install -e ".[dev]"    # 或 uv sync
-ruff check && pytest
-uvicorn app.main:app --reload
+uv sync --extra dev           # 仓库内 .venv 默认不含 pytest/ruff，需带 --extra dev
+uv run ruff check && uv run pytest
+uv run uvicorn app.main:app --reload
 ```
 
 ### 环境变量
@@ -141,7 +155,7 @@ REDIS_URL=redis://redis:6379/0
 
 ## 命令
 
-pnpm 是唯一的包管理器（仅 `pnpm-lock.yaml`）。CI 工作流仍使用 `npm ci`——本地请用 pnpm，不要新增 `package-lock.json`。
+pnpm 是唯一的包管理器（仅 `pnpm-lock.yaml`），不要新增 `package-lock.json`。仓库**没有 CI 工作流**（无 `.github/`），发布前请在本地运行 `pnpm quality-gate`。
 
 ```bash
 # Web
@@ -163,7 +177,7 @@ pnpm agent:eval                  # eval profile（Stage 5 骨架）
 docker compose config            # 修改 compose 前校验
 
 # 后端（services/backend，Python 3.12，ruff line-length 120）
-ruff check && pytest
+uv sync --extra dev && uv run ruff check && uv run pytest
 ```
 
 ---
@@ -211,15 +225,16 @@ __tests__/  e2e/                  # 前端测试；后端测试在 services/back
 
 完整生命周期：**选题 → 综述 → 设计 → 数据 → 写作 → 投稿 → 返修**。8 步进度条中「数据」与「分析」两步共享 DataPilot 智能体。
 
-| # | 智能体 | 输入 | 输出 / 应用 |
-| --- | --- | --- | --- |
-| 1 | TopicScout | 学科领域、关键词、目标期刊 | 3 个候选选题（新颖性/价值/可行性评分）→ 写入 `topic` 区块 |
-| 2 | LitReview | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目 |
-| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估 |
-| 4 | DataPilot | 数据来源、收集方法 | 分析脚本（Python/R）、清洗步骤、分析计划 |
-| 5 | IMRaDWriter | 章节、引用格式 | 富文本正文 + 参考文献 → 编辑器可编辑 |
-| 6 | SubmitMatch | 摘要、关键词、OA 偏好 | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包 |
-| 7 | RebuttalShow | 审稿意见文本 / PDF | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目 |
+
+| # | 智能体           | 输入                         | 输出 / 应用                                               |
+| - | ---------------- | ---------------------------- | --------------------------------------------------------- |
+| 1 | TopicScout       | 学科领域、关键词、目标期刊   | 3 个候选选题（新颖性/价值/可行性评分）→ 写入`topic` 区块 |
+| 2 | LitReview        | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目                      |
+| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估                                  |
+| 4 | DataPilot        | 数据来源、收集方法           | 分析脚本（Python/R）、清洗步骤、分析计划                  |
+| 5 | IMRaDWriter      | 章节、引用格式               | 富文本正文 + 参考文献 → 编辑器可编辑                     |
+| 6 | SubmitMatch      | 摘要、关键词、OA 偏好        | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包            |
+| 7 | RebuttalShow     | 审稿意见文本 / PDF           | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目              |
 
 > 智能体页共享 `AgentPageTemplate`，行为定义在两处：`components/agents/agent-configs.tsx` 的配置对象，以及 `components/agents/configs/<agent>/` 的按智能体目录。
 
@@ -298,4 +313,5 @@ pnpm docker:up
 ## License
 
 Private project.
+
 # iScholar6

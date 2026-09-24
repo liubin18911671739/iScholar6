@@ -13,13 +13,12 @@
 
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import authConfig from "@/lib/auth.config";
 import { findUserByEmail } from "@/lib/auth/users";
 import { verifyPassword } from "@/lib/auth/password";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  trustHost: true,
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -38,6 +37,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     jwt({ token, user }) {
       if (user) {
         token.uid = user.id;

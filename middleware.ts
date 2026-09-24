@@ -1,23 +1,27 @@
-import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+/**
+ * Auth.js middleware (middleware.ts)
+ *
+ * Functionality:
+ * - Gates the authenticated app routes on the Edge runtime before they render.
+ * - Redirects signed-out users to `/login` via the `authorized` callback.
+ *
+ * Notes:
+ * - Imports the edge-safe `lib/auth.config.ts`; never `lib/auth.ts`, which pulls
+ *   in Node-only modules (`pg`, `bcryptjs`).
+ * - API routes are excluded; they enforce their own auth in request guards.
+ */
 
-export async function middleware(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return NextResponse.next();
-  let response = NextResponse.next({ request });
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (values) => values.forEach(({ name, value, options }) => {
-        request.cookies.set(name, value);
-        response = NextResponse.next({ request });
-        response.cookies.set(name, value, options);
-      }),
-    },
-  });
-  await supabase.auth.getUser();
-  return response;
-}
+import NextAuth from "next-auth";
+import authConfig from "@/lib/auth.config";
 
-export const config = { matcher: ["/api/training/:path*", "/training/:path*"] };
+export const { auth: middleware } = NextAuth(authConfig);
+
+export const config = {
+  matcher: [
+    "/dashboard/:path*",
+    "/projects/:path*",
+    "/settings/:path*",
+    "/tools/:path*",
+    "/training/:path*",
+  ],
+};

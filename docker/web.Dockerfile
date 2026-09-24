@@ -14,7 +14,7 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Auth.js validates these at build time when pages are statically analyzed.
+# Defensive only: `next build` succeeds without AUTH_SECRET; Auth.js reads it at runtime.
 ENV AUTH_SECRET=build-time-placeholder
 RUN pnpm build
 

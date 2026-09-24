@@ -8,7 +8,7 @@ implementation state maintained by the LangGraph checkpointer.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -20,7 +20,7 @@ from app.core.db import Base
 
 
 def now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class RunStatus(StrEnum):
@@ -37,9 +37,16 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
+    # The FK constraint is added by migration 20260925_0003.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
+    discipline: Mapped[str | None] = mapped_column(String(240))
+    goal: Mapped[str | None] = mapped_column(Text)
+    encryption_key_ref: Mapped[str | None] = mapped_column(String(240))
+    metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now, nullable=False)
 
@@ -49,6 +56,8 @@ class AiConsent(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
+    # The FK constraint is added by migration 20260925_0003.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     external_services: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     redaction_confirmed: Mapped[bool] = mapped_column(nullable=False, default=False)
@@ -60,6 +69,8 @@ class AgentThread(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
+    # The FK constraint is added by migration 20260925_0003.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(240))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
@@ -72,6 +83,8 @@ class AgentRun(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     thread_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False, index=True)
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
+    # The FK constraint is added by migration 20260925_0003.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     agent: Mapped[str] = mapped_column(String(64), nullable=False, default="orchestrator")
     goal: Mapped[str] = mapped_column(Text, nullable=False)

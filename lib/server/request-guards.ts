@@ -15,6 +15,7 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
+import { isCollaborativeMode } from "@/lib/supabase/collaborative";
 import { validateAiConsentProof, type AiConsentProof } from "@/lib/ai/consent";
 
 // Per-process rate-limit buckets keyed by `scope:address`.
@@ -75,6 +76,8 @@ export function createServiceSupabaseClient() {
 
 /** Resolve the authenticated user from a bearer token or the server session. */
 export async function requireApiUser(request?: Request) {
+  // Browser-local mode has no server session; the UI is gated client-side.
+  if (!isCollaborativeMode()) return { ok: true as const, userId: "local" };
   const bearer = getBearerToken(request);
   if (bearer) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

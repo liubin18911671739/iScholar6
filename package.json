@@ -2,6 +2,7 @@
   "name": "ischolar-v6",
   "version": "6.0.0",
   "private": true,
+  "packageManager": "pnpm@10.31.0",
   "description": "iScholar v6.0 - AI-native academic research platform (browser-local)",
   "scripts": {
     "dev": "next dev",

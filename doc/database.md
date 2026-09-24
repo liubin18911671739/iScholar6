@@ -51,6 +51,7 @@
 | --- | --- |
 | `20260920_0001_agent_platform` | `projects`、`agent_threads`、`agent_runs_v2`、`agent_run_events`、`artifacts`、`evidence` |
 | `20260920_0002_consent_resume` | 同意与运行恢复相关（`ai_consents_v2`、`resume_input` 等） |
+| `20260925_0003_research_core` | 科研核心表（`manuscripts`…`tasks`）+ `projects` 客户端字段 + owner 列指向 `users(id)` 的 FK |
 
 > 新增迁移后同步更新本表与 `doc/architecture.md` 的数据层说明。
 
@@ -109,16 +110,40 @@ projects ──┬─(N) agent_threads ──(N) agent_runs_v2 ──┬─(N) a
 
 ### 4.4 授权
 
-所有查询按签名身份解析的 `owner_id` 过滤（`owned_project` / `owned_run`），不匹配返回 `404`。后续 Stage 1 加入组织/训练营级别的细粒度授权（`app/core/authz.py`）。
+所有查询按签名身份解析的 `owner_id` 过滤（`owned_project` / `owned_run`），不匹配返回 `404`。组织/训练营级别的细粒度授权在 `app/core/authz.py`（纯策略函数）中定义，Stage 1b 接入。
+
+> **身份外键**：`owner_id` 列在数据库中通过迁移 `20260925_0003` 引用 `users(id)`；ORM 模型**不**声明该 FK（auth 表由 web 所有、后端不建模），因此 `alembic revision --autogenerate` 不应作为 schema 来源，一律手写迁移。
+
+### 4.5 科研核心表（迁移 `20260925_0003`）
+
+| 表 | 关键列 | 说明 |
+| --- | --- | --- |
+| `manuscripts` | `id`、`project_id`(FK)、`title`、`abstract`、`current_version`、`target_journal`、`status`、`updated_at` | 稿件 |
+| `manuscript_blocks` | `id`、`manuscript_id`(FK)、`section`、`ordinal`、`content`、`version`、`author_type`、`agent_run_id`、`updated_at` | 有序区块 |
+| `manuscript_versions` | `id`、`manuscript_id`(FK)、`block_id`、`version`、`content`、`author_type`、`agent_run_id`、`content_hash`、`created_at` | 版本快照 |
+| `bib_items` | `id`、`project_id`(FK)、`doi`、`title`、`authors`(JSON)、`year`、`venue`、`abstract`、`keywords`(JSON)、`citation_count`、`metadata`(JSON)、`embedding`(vector 384)、`created_at` | 文献条目 |
+| `attachments` | `id`、`project_id`(FK)、`bib_item_id`(FK)、`filename`、`storage_path`、`content_hash`、`mime_type`、`size_bytes`、`encrypted`、`created_at` | 附件元数据；blob 在文件系统卷 |
+| `rag_chunks` | `id`、`bib_item_id`(FK)、`chunk_index`、`content`、`embedding`(vector 384) | 检索块 |
+| `experiments` | `id`、`project_id`(FK)、`name`、`dataset`、`params`(JSON)、`results`(JSON)、`script_blob_url`、`created_at` | 实验 |
+| `submissions` | `id`、`project_id`(FK)、`manuscript_id`(FK)、`journal_name`、`cover_letter`、`file_tree`(JSON)、`submitted_at`、`status` | 投稿 |
+| `review_rounds` | `id`、`submission_id`(FK)、`round_number`、`decision`、`review_text`、`deadline` | 审稿轮次 |
+| `rebuttal_items` | `id`、`review_round_id`(FK)、`reviewer_comment`、`response`、`change_location`、`evidence`(JSON) | 返修条目 |
+| `tasks` | `id`、`project_id`(FK)、`title`、`description`、`status`、`assignee`、`due_date`、`created_by` | 项目任务 |
+
+主键统一为**后端生成的 UUID**（不同于旧 Supabase 的 text id）。`projects` 同迁移新增 `status`/`discipline`/`goal`/`encryption_key_ref`/`metadata` 列以对齐客户端模型。
+
+### 4.6 数据 API（`/v1/data/*`）
+
+`app/api/v1/data/` 包：`projects`、`manuscripts`、`manuscript-blocks`（含 `reorder`）、`bib-items`（含 `bulk`）、`tasks`。JSON 收发为 **camelCase**（`CamelModel` 别名生成）；鉴权用签名身份解析的 `owner_id`，跨用户返回 `404`。剩余科研实体（versions/attachments/rag-chunks/experiments/submissions/review-rounds/rebuttal-items）随 1a 继续补齐。
 
 ---
 
 ## 5. pgvector 与检索
 
-目标（Stage 1+）：
+状态：`bib_items.embedding` 与 `rag_chunks.embedding`（`vector(384)`）已在迁移 `20260925_0003` 建好；服务端嵌入与 `/v1/vectors` 检索接口在 1a 后续实现（`sentence-transformers` 通过 `[vectors]` extra 安装）。
 
 - 启用 `vector` 扩展（`db/init/000_extensions.sql`）。
-- 文献/RAG 文本块的嵌入在**服务端**计算并存入带 `vector` 列的表。
+- 文献/RAG 文本块的嵌入在**服务端**计算并存入 `vector` 列。
 - 相似检索用 pgvector 距离算子；Top-K 返回后由后端组装。
 
 > 旧实现为浏览器端 Transformers.js（`Xenova/all-MiniLM-L6-v2`，384 维），随 `lib/local/*` 删除。

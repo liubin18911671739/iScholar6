@@ -8,18 +8,20 @@ before editing.
 
 ## Read before assuming architecture
 
-- `IMPLEMENTATION_PLAN.md` is the authoritative direction and stage status (currently Stage 0 in progress).
-- `README.md` and most of `CLAUDE.md` still describe the **old** browser-local / opt-in-Supabase model;
-  `.env.example` and the plan describe the **target**. Trust executable config/code over prose.
+- `IMPLEMENTATION_PLAN.md` is the authoritative direction and stage status (currently Stage 0 in progress);
+  `TODO.md` tracks execution detail. `README.md` / `TODO.md` / `doc/*` were rewritten to the **target**
+  architecture.
+- `CLAUDE.md` is the stale one—it still describes the **old** browser-local / opt-in-Supabase model (and
+  `doc/database.md` has a legacy appendix). Trust executable config/code and the plan over prose.
 - Legacy data layer: `lib/local/*` (Dexie) and `lib/supabase/*`. New platform: `services/backend`,
   `services/eval`, reached from the web via `lib/server/backend.ts` and `app/api/agent/[...path]/route.ts`.
 - Only `/api/agent/[...path]` currently proxies to the Python backend; most features still use the legacy path.
 
 ## Commands
 
-pnpm is the real package manager (`pnpm-lock.yaml` is the only lockfile). CI (`.github/workflows/ci.yml`)
-still runs `npm ci`—use pnpm locally; don't add a package-lock.json. Node 22 required: **Node 20 crashes SSR
-with `Promise.withResolvers is not a function`** via pdfjs-dist.
+pnpm is the real package manager (`pnpm-lock.yaml` is the only lockfile); don't add a package-lock.json.
+There is **no CI workflow** in this repo (no `.github/`) — run `pnpm quality-gate` locally before shipping.
+Node 22 required: **Node 20 crashes SSR with `Promise.withResolvers is not a function`** via pdfjs-dist.
 
 ```bash
 pnpm dev / build / start / lint
@@ -44,7 +46,11 @@ Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `r
 ## New platform (services/backend)
 
 - FastAPI entrypoint `app/main.py`; routers in `app/api/v1`: `/v1/healthz`, `/v1/readyz`, `/v1/me`,
-  `/v1/data`, `/v1/agent`. Compose healthcheck hits `/v1/healthz`.
+  `/v1/data/*` (research-core CRUD package), `/v1/agent`. Compose healthcheck hits `/v1/healthz`.
+- Auth tables (`users`/`accounts`/`verification_token`) are web-owned and **not** mapped by the backend
+  ORM. `owner_id` columns carry a DB-level FK to `users(id)` added by Alembic, but the models declare no
+  FK — so never use `alembic revision --autogenerate` as the schema source; hand-write revisions.
+  Read the caller's global role with `app/api/v1/deps.resolve_role`; policy lives in `app/core/authz.py`.
 - **Identity is signed, never trusted raw.** The web BFF signs `X-IScholar-User`/`-Timestamp`/`-Signature`
   with HMAC-SHA256 over `AGENT_SERVICE_TOKEN`; backend rejects unsigned or ±300s-stale calls
   (`app/core/security.py`, mirrored by `lib/server/backend.ts`). Never forward an unsigned user id, and never
@@ -58,10 +64,13 @@ Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `r
 ## Legacy data and sync gotchas (still live)
 
 - Auth.js (`lib/auth.ts`, credentials + Postgres `users`, handler at `app/api/auth/[...nextauth]/route.ts`)
-  is being introduced, but `middleware.ts` still refreshes Supabase auth only for `/training/:path*` and
-  `/api/training/:path*`—not all routes. `lib/supabase/*` still powers most of the app.
-- `isCollaborativeMode()` (`lib/supabase/collaborative.ts`) is deprecated and hardcoded `true`;
-  `NEXT_PUBLIC_COLLABORATIVE_MODE` is vestigial (only Playwright sets it).
+  is the auth path. `middleware.ts` is Auth.js Edge middleware and must import the edge-safe
+  `lib/auth.config.ts` (never `lib/auth.ts`, which pulls in `pg`/`bcryptjs` and breaks the Edge bundle);
+  it gates `/dashboard|/projects|/settings|/tools|/training`, excluding `/api/*` and public pages.
+  `lib/supabase/*` still powers the legacy collaborative data layer.
+- `isCollaborativeMode()` (`lib/supabase/collaborative.ts`) reads
+  `NEXT_PUBLIC_COLLABORATIVE_MODE === "true"`; when off, the legacy hooks/audit and agent routes use
+  IndexedDB and `requireApiUser()` returns a local identity instead of a Supabase session.
 - Dexie schema `lib/local/db.ts` is v4. Always add a **new** version for any schema change.
 - Syncing a legacy table/field = the four steps documented atop `lib/supabase/field-map.ts`: SQL migration →
   `DEXIE_TO_REMOTE_TABLE`/`REMOTE_COLUMN_MAP` → `doc/database.md` → regression test in
@@ -83,8 +92,10 @@ Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `r
   `MISSING_MESSAGE`. Use `t.raw("key")` for array/object values.
 - Theme tokens in `app/globals.css` are space-separated HSL components (`216 98% 52%`); never wrap in `hsl()`
   or use hex. There is one dark theme.
-- `pnpm-workspace.yaml` is not a real workspace—it only disables native build scripts (`sharp`,
-  `onnxruntime-node`, `@swc/core`, etc.).
+- `pnpm-workspace.yaml` is not a real workspace—it only lists `ignoredBuiltDependencies` (native build
+  scripts are skipped for `sharp`, `onnxruntime-node`, `@swc/core`, etc.). `package.json` pins
+  `packageManager: pnpm@10.31.0`; a newer pnpm (corepack default in Docker) rejects the old `allowBuilds`
+  key with `ERR_PNPM_IGNORED_BUILDS`, so keep the pin and the `ignoredBuiltDependencies` key.
 - `app/modules/*` are legacy redirects to `/projects`; don't add features there. The plugin system is
   local-only (not synced).
 

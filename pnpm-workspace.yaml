@@ -1,9 +1,11 @@
-allowBuilds:
-  '@parcel/watcher': false
-  '@swc/core': false
-  canvas: false
-  esbuild: false
-  onnxruntime-node: false
-  protobufjs: false
-  sharp: false
-  unrs-resolver: false
+# Not a real pnpm workspace. This file exists only to declare which
+# dependencies are NOT allowed to run install/postinstall build scripts.
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - '@swc/core'
+  - canvas
+  - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp
+  - unrs-resolver

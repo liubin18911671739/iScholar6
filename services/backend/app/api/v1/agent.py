@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -14,10 +13,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.runtime import execute_run
+from app.api.v1.deps import identity_uuid, owned_project
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
-from app.models import AiConsent, AgentRun, AgentThread, Artifact, Project, RunEvent, RunStatus
+from app.models import AgentRun, AgentThread, AiConsent, Artifact, RunEvent, RunStatus
 from app.models.domain import now
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -39,20 +38,6 @@ class RunCreate(BaseModel):
 class ResumeBody(BaseModel):
     approved: bool | None = None
     input: dict[str, Any] = Field(default_factory=dict)
-
-
-def identity_uuid(identity: Identity) -> uuid.UUID:
-    try:
-        return uuid.UUID(identity.user_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail="INVALID_SERVICE_USER") from exc
-
-
-async def owned_project(session: AsyncSession, project_id: uuid.UUID, owner_id: uuid.UUID) -> Project:
-    project = await session.scalar(select(Project).where(Project.id == project_id, Project.owner_id == owner_id))
-    if not project:
-        raise HTTPException(status_code=404, detail="PROJECT_NOT_FOUND")
-    return project
 
 
 async def owned_run(session: AsyncSession, run_id: uuid.UUID, owner_id: uuid.UUID) -> AgentRun:
