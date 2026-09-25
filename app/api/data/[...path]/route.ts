@@ -1,8 +1,8 @@
 /**
- * Agent/data BFF proxy (/api/agent/[...path])
+ * Data BFF proxy (/api/data/[...path])
  *
- * Forwards to the backend `/v1/<path>` with a signed Auth.js identity. Data
- * requests may also use `/api/data/[...path]`; both share the same guard rails.
+ * Forwards to the backend `/v1/data/<path>` with a signed Auth.js identity.
+ * Client hooks call this instead of Supabase when `NEXT_PUBLIC_DATA_BACKEND=backend`.
  */
 
 import { NextRequest } from "next/server";
@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function proxy(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxyToBackend(req, params.path);
+  return proxyToBackend(req, ["data", ...params.path]);
 }
 
 export const GET = proxy;

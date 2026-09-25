@@ -1,20 +1,26 @@
-"""Manuscript block CRUD and reordering."""
+"""Manuscript block CRUD, content snapshots, reordering, and rollback.
+
+The backend owns versioning: creating a block writes its version-1 snapshot, and
+a content-changing patch writes a new hashed snapshot — the client no longer
+computes hashes or writes versions directly.
+"""
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.data.common import CamelModel, iso, ok, owned_block, owned_manuscript
+from app.api.v1.data.common import CamelModel, iso, ok, owned_block, owned_manuscript, owned_version
 from app.api.v1.deps import identity_uuid
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
-from app.models import ManuscriptBlock
+from app.models import ManuscriptBlock, ManuscriptVersion
 
 router = APIRouter(prefix="/manuscript-blocks", tags=["data"])
 
@@ -24,7 +30,6 @@ class BlockCreate(CamelModel):
     section: str = Field(min_length=1, max_length=120)
     order: int = 0
     content: str = ""
-    version: int | None = None
     author_type: str | None = Field(default=None, max_length=32)
     agent_run_id: uuid.UUID | None = None
 
@@ -40,6 +45,14 @@ class BlockUpdate(CamelModel):
 class ReorderBody(CamelModel):
     manuscript_id: uuid.UUID
     ordered_ids: list[uuid.UUID] = Field(min_length=1)
+
+
+class RollbackBody(CamelModel):
+    version_id: uuid.UUID
+
+
+def content_hash(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def serialize_block(block: ManuscriptBlock) -> dict[str, Any]:
@@ -85,11 +98,23 @@ async def create_block(
         section=body.section,
         ordinal=body.order,
         content=body.content,
-        version=body.version,
-        author_type=body.author_type,
+        version=1,
+        author_type=body.author_type or "human",
         agent_run_id=body.agent_run_id,
     )
     session.add(block)
+    await session.flush()
+    session.add(
+        ManuscriptVersion(
+            manuscript_id=body.manuscript_id,
+            block_id=block.id,
+            version=1,
+            content=body.content,
+            author_type=block.author_type,
+            agent_run_id=body.agent_run_id,
+            content_hash=content_hash(body.content),
+        )
+    )
     await session.commit()
     return ok(serialize_block(block))
 
@@ -118,6 +143,25 @@ async def reorder_blocks(
     return ok({"count": len(rows)})
 
 
+@router.post("/{block_id}/rollback")
+async def rollback_block(
+    block_id: uuid.UUID,
+    body: RollbackBody,
+    identity: Identity = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+):
+    owner_id = identity_uuid(identity)
+    block = await owned_block(session, block_id, owner_id)
+    version = await owned_version(session, body.version_id, owner_id)
+    if version.manuscript_id != block.manuscript_id:
+        raise HTTPException(status_code=400, detail="VERSION_MANUSCRIPT_MISMATCH")
+    block.content = version.content
+    block.version = version.version
+    block.author_type = "human"
+    await session.commit()
+    return ok(serialize_block(block))
+
+
 @router.patch("/{block_id}")
 async def update_block(
     block_id: uuid.UUID,
@@ -127,9 +171,27 @@ async def update_block(
 ):
     block = await owned_block(session, block_id, identity_uuid(identity))
     fields = body.model_dump(exclude_unset=True)
+
     order = fields.pop("order", None)
     if order is not None:
         block.ordinal = order
+
+    new_content = fields.pop("content", None)
+    if new_content is not None and new_content != block.content:
+        next_version = (block.version or 1) + 1
+        session.add(
+            ManuscriptVersion(
+                manuscript_id=block.manuscript_id,
+                block_id=block.id,
+                version=next_version,
+                content=new_content,
+                author_type=fields.get("author_type") or "human",
+                content_hash=content_hash(new_content),
+            )
+        )
+        block.content = new_content
+        block.version = next_version
+
     for key, value in fields.items():
         if value is not None:
             setattr(block, key, value)

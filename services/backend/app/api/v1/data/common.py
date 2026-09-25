@@ -12,7 +12,20 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import BibItem, Manuscript, ManuscriptBlock, Project, Task
+from app.models import (
+    Attachment,
+    BibItem,
+    Experiment,
+    Manuscript,
+    ManuscriptBlock,
+    ManuscriptVersion,
+    Project,
+    RagChunk,
+    RebuttalItem,
+    ReviewRound,
+    Submission,
+    Task,
+)
 
 
 class CamelModel(BaseModel):
@@ -78,3 +91,85 @@ async def owned_task(session: AsyncSession, task_id: uuid.UUID, owner_id: uuid.U
     if not task:
         raise HTTPException(status_code=404, detail="TASK_NOT_FOUND")
     return task
+
+
+async def owned_version(session: AsyncSession, version_id: uuid.UUID, owner_id: uuid.UUID) -> ManuscriptVersion:
+    version = await session.scalar(
+        select(ManuscriptVersion)
+        .join(Manuscript, Manuscript.id == ManuscriptVersion.manuscript_id)
+        .join(Project, Project.id == Manuscript.project_id)
+        .where(ManuscriptVersion.id == version_id, Project.owner_id == owner_id)
+    )
+    if not version:
+        raise HTTPException(status_code=404, detail="VERSION_NOT_FOUND")
+    return version
+
+
+async def owned_attachment(session: AsyncSession, attachment_id: uuid.UUID, owner_id: uuid.UUID) -> Attachment:
+    attachment = await session.scalar(
+        select(Attachment).join(Project, Project.id == Attachment.project_id).where(
+            Attachment.id == attachment_id, Project.owner_id == owner_id
+        )
+    )
+    if not attachment:
+        raise HTTPException(status_code=404, detail="ATTACHMENT_NOT_FOUND")
+    return attachment
+
+
+async def owned_rag_chunk(session: AsyncSession, chunk_id: uuid.UUID, owner_id: uuid.UUID) -> RagChunk:
+    chunk = await session.scalar(
+        select(RagChunk)
+        .join(BibItem, BibItem.id == RagChunk.bib_item_id)
+        .join(Project, Project.id == BibItem.project_id)
+        .where(RagChunk.id == chunk_id, Project.owner_id == owner_id)
+    )
+    if not chunk:
+        raise HTTPException(status_code=404, detail="RAG_CHUNK_NOT_FOUND")
+    return chunk
+
+
+async def owned_experiment(session: AsyncSession, experiment_id: uuid.UUID, owner_id: uuid.UUID) -> Experiment:
+    experiment = await session.scalar(
+        select(Experiment).join(Project, Project.id == Experiment.project_id).where(
+            Experiment.id == experiment_id, Project.owner_id == owner_id
+        )
+    )
+    if not experiment:
+        raise HTTPException(status_code=404, detail="EXPERIMENT_NOT_FOUND")
+    return experiment
+
+
+async def owned_submission(session: AsyncSession, submission_id: uuid.UUID, owner_id: uuid.UUID) -> Submission:
+    submission = await session.scalar(
+        select(Submission).join(Project, Project.id == Submission.project_id).where(
+            Submission.id == submission_id, Project.owner_id == owner_id
+        )
+    )
+    if not submission:
+        raise HTTPException(status_code=404, detail="SUBMISSION_NOT_FOUND")
+    return submission
+
+
+async def owned_review_round(session: AsyncSession, round_id: uuid.UUID, owner_id: uuid.UUID) -> ReviewRound:
+    review_round = await session.scalar(
+        select(ReviewRound)
+        .join(Submission, Submission.id == ReviewRound.submission_id)
+        .join(Project, Project.id == Submission.project_id)
+        .where(ReviewRound.id == round_id, Project.owner_id == owner_id)
+    )
+    if not review_round:
+        raise HTTPException(status_code=404, detail="REVIEW_ROUND_NOT_FOUND")
+    return review_round
+
+
+async def owned_rebuttal_item(session: AsyncSession, item_id: uuid.UUID, owner_id: uuid.UUID) -> RebuttalItem:
+    item = await session.scalar(
+        select(RebuttalItem)
+        .join(ReviewRound, ReviewRound.id == RebuttalItem.review_round_id)
+        .join(Submission, Submission.id == ReviewRound.submission_id)
+        .join(Project, Project.id == Submission.project_id)
+        .where(RebuttalItem.id == item_id, Project.owner_id == owner_id)
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="REBUTTAL_ITEM_NOT_FOUND")
+    return item

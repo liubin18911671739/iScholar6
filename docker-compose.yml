@@ -130,6 +130,23 @@ services:
       postgres:
         condition: service_healthy
 
+  # Optional: server-side embeddings backfill. Heavy (torch); enable with
+  # `docker compose --profile vectors up -d`.
+  vectors:
+    profiles: ["vectors"]
+    build:
+      context: ./services/backend
+      target: vectors
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
 volumes:
   pgdata:
   redisdata:

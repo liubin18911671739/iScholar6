@@ -55,7 +55,15 @@ ignore = ["E501"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI dependency/parameter calls are safe as argument defaults.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Header", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Header",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.File",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
