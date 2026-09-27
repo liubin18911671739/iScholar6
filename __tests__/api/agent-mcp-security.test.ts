@@ -1,4 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  headers: vi.fn(async () => ({
+    "X-IScholar-User": "user-1",
+    "X-IScholar-Timestamp": "1",
+    "X-IScholar-Signature": "sig",
+  })),
+}));
+
+vi.mock("@/lib/server/backend", () => ({
+  backendIdentityHeaders: mocks.headers,
+  backendUrl: (path: string) => `http://backend.test${path}`,
+}));
+
 import { POST as postAgent } from "@/app/api/agents/[agent]/route";
 import { POST as postMcp } from "@/app/api/mcp/[tool]/route";
 
@@ -36,6 +50,7 @@ describe("Agent and MCP route security", () => {
     else process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
     if (originalSupabaseAnonKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey;
+    vi.restoreAllMocks();
   });
 
   it("rejects unauthenticated Agent requests in collaborative mode", async () => {
@@ -86,48 +101,39 @@ describe("Agent and MCP route security", () => {
     expect(limited.status).toBe(429);
   });
 
-  it("rejects unauthenticated MCP requests in collaborative mode", async () => {
-    process.env.NEXT_PUBLIC_COLLABORATIVE_MODE = "true";
-
+  it("MCP proxy rejects unauthenticated requests", async () => {
+    mocks.headers.mockResolvedValueOnce(null as never);
     const res = await postMcp(request({}), { params: { tool: "openalex_search" } });
-    const json = await res.json();
-
     expect(res.status).toBe(401);
-    expect(json.error).toBe("UNAUTHENTICATED");
   });
 
-  it("rejects oversized MCP requests before parsing", async () => {
-    const res = await postMcp(request({}, { "content-length": "262145" }), { params: { tool: "openalex_search" } });
-    const json = await res.json();
+  it("MCP proxy reshapes the legacy body into the backend contract", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true, data: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
 
-    expect(res.status).toBe(413);
-    expect(json.error).toBe("REQUEST_TOO_LARGE");
+    await postMcp(
+      request({ projectId: "p1", consentProof: { consentId: "c1" }, query: "AI research", perPage: 5 }),
+      { params: { tool: "openalex_search" } }
+    );
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://backend.test/v1/mcp/tools/openalex_search");
+    expect(JSON.parse(init.body as string)).toEqual({
+      projectId: "p1",
+      consentProof: { consentId: "c1" },
+      params: { query: "AI research", perPage: 5 },
+    });
   });
 
-  it("rejects malformed MCP payloads", async () => {
+  it("MCP proxy rejects malformed payloads", async () => {
     const res = await postMcp(invalidJsonRequest(), { params: { tool: "openalex_search" } });
     const json = await res.json();
-
     expect(res.status).toBe(400);
     expect(json.error).toBe("INVALID_JSON");
-  });
-
-  it("rejects MCP requests missing consent proof", async () => {
-    const res = await postMcp(request({ projectId: "project-id", query: "AI research" }), { params: { tool: "openalex_search" } });
-    const json = await res.json();
-
-    expect(res.status).toBe(403);
-    expect(json.ok).toBe(false);
-  });
-
-  it("rate limits repeated MCP requests", async () => {
-    const headers = { "x-forwarded-for": "mcp-rate-limit-test" };
-    for (let index = 0; index < 20; index += 1) {
-      const res = await postMcp(request({}, headers), { params: { tool: "unknown-tool" } });
-      expect(res.status).toBe(400);
-    }
-
-    const limited = await postMcp(request({}, headers), { params: { tool: "unknown-tool" } });
-    expect(limited.status).toBe(429);
   });
 });

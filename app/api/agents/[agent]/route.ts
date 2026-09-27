@@ -80,6 +80,22 @@ export async function POST(
       );
     }
 
+    // Optional: route to the backend LangGraph runtime (durable run + artifact).
+    if ((process.env.AGENT_RUNTIME ?? "legacy") === "langgraph") {
+      const { runLanggraphAgent } = await import("@/lib/server/agent-runtime");
+      const { systemPrompt: _system, userPrompt: _user, consentProof: _consent, projectId: _project, ...agentInput } = body;
+      void _system;
+      void _user;
+      void _consent;
+      void _project;
+      return runLanggraphAgent({
+        agentId,
+        projectId: String(body.projectId ?? ""),
+        userPrompt,
+        input: agentInput as Record<string, unknown>,
+      });
+    }
+
     // Resolve the DeepSeek endpoint, model, and credentials from environment variables.
     const apiUrl =
       process.env.DEEPSEEK_API_URL ?? "https://api.deepseek.com/chat/completions";

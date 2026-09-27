@@ -19,6 +19,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { ServiceWorkerRegister } from "@/components/providers/sw-register";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -52,8 +53,10 @@ export default function RootLayout({
         <TooltipProvider delayDuration={300}>
           <ThemeProvider>
             <I18nProvider initialLocale={locale} initialMessages={messages}>
-              {children}
-              <Toaster richColors position="top-right" />
+              <QueryProvider>
+                {children}
+                <Toaster richColors position="top-right" />
+              </QueryProvider>
             </I18nProvider>
           </ThemeProvider>
         </TooltipProvider>

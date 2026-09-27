@@ -58,10 +58,10 @@ export function VersionPanel({ blockId, currentContent }: VersionPanelProps) {
   }
 
   // Rolls the block back to the selected version with toast feedback.
-  async function handleRestore(versionId: string) {
+  async function handleRestore(versionId: string, blockId?: string) {
     setRestoring(versionId);
     try {
-      await rollbackToVersion(versionId);
+      await rollbackToVersion(versionId, blockId);
       toast.success(t("restoreSuccess"));
     } catch {
       toast.error(t("restoreError"));
@@ -132,7 +132,7 @@ export function VersionPanel({ blockId, currentContent }: VersionPanelProps) {
                       disabled={restoring === version.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleRestore(version.id);
+                        handleRestore(version.id, version.blockId);
                       }}
                     >
                       <RotateCcw className="mr-1.5 h-3 w-3" />

@@ -28,6 +28,38 @@ class Settings(BaseSettings):
     deepseek_api_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-v4-flash"
 
+    # Agent runtime: `langgraph` runs the per-agent graphs; `legacy` proxies the
+    # old web route. `agent_model_fake` forces the deterministic model for tests.
+    agent_runtime: str = "langgraph"
+    agent_model_fake: bool = False
+    # When true, creating a run requires an `ai_consents_v2` row with services.
+    # Default off: the web BFF verifies consent before forwarding (migration period).
+    agent_require_consent: bool = False
+
+    # MCP: built-in tools run in-process; `mcp_servers` is a JSON list of
+    # {"name": str, "url": str} streamable-HTTP endpoints for the client pool.
+    mcp_enabled: bool = True
+    mcp_servers: str = "[]"
+    mcp_request_max_bytes: int = 2 * 1024 * 1024
+    mcp_response_max_bytes: int = 2 * 1024 * 1024
+    mcp_server_token: str | None = None
+
+    @property
+    def mcp_server_list(self) -> list[dict[str, str]]:
+        import json
+
+        try:
+            parsed = json.loads(self.mcp_servers)
+        except ValueError:
+            return []
+        if not isinstance(parsed, list):
+            return []
+        return [
+            {"name": str(entry.get("name", "")), "url": str(entry.get("url", ""))}
+            for entry in parsed
+            if isinstance(entry, dict) and entry.get("url")
+        ]
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

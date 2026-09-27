@@ -238,6 +238,9 @@ render(React.createElement(NextIntlClientProvider, { locale: "zh-CN", messages: 
 
 - 仅 Chromium；**端口 3100**、`reuseExistingServer: false`、`workers: 1`。这是为规避 IndexedDB/对话框竞态**有意为之**，不要改成并行。
 - 运行：`pnpm test:e2e`（自动起 dev server）或 `pnpm playwright test e2e/<file>`。
+- **认证**：E2E 走 Auth.js credentials。`e2e/global-setup.ts` 会向 Postgres 播种 staff/learner 用户，`playwright.config.ts` 注入 host 可达的 `AUTH_DATABASE_URL`（compose `.env` 指向 docker 内网 `postgres`，host 需 `127.0.0.1:${POSTGRES_PORT}`）。
+- **前置**：先起 Postgres — `docker compose up -d --wait postgres`（`pnpm quality-gate` 已自动执行该步）。数据库不可达时 globalSetup 会以明确信息失败。
+- Supabase 协作相关用例（`supabase-collaboration.spec.ts`、training-camp 建营用例）默认跳过，需 `REAL_SUPABASE_E2E=true` 与真实 Supabase 凭据。
 
 ### 后端（pytest）
 

@@ -10,7 +10,7 @@ from langgraph.types import Command
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.graph import build_graph
+from app.agents.graphs import allowed_tools_for, build_graph_for
 from app.agents.harness import AgentHarness, RunCancelled
 from app.core.config import get_settings
 from app.models import AgentRun, Artifact, RunStatus
@@ -24,13 +24,13 @@ def checkpoint_url() -> str:
 
 async def execute_run(session: AsyncSession, run: AgentRun, resume: dict[str, Any] | None = None) -> dict[str, Any]:
     """Execute or resume one run and reflect its state in product records."""
-    harness = AgentHarness(session=session, run_id=str(run.id), allowed_tools={"scholar.search"})
+    harness = AgentHarness(session=session, run_id=str(run.id), allowed_tools=allowed_tools_for(run.agent))
     config = {"configurable": {"thread_id": str(run.thread_id)}}
     resume = resume if resume is not None else run.resume_input
     try:
       async with AsyncPostgresSaver.from_conn_string(checkpoint_url()) as checkpointer:
         await checkpointer.setup()
-        graph = build_graph(harness).compile(checkpointer=checkpointer)
+        graph = build_graph_for(run.agent, harness).compile(checkpointer=checkpointer)
         value: Any = Command(resume=resume) if resume is not None else {
             "goal": run.goal,
             "project_id": str(run.project_id),

@@ -52,6 +52,8 @@
 | `20260920_0001_agent_platform` | `projects`、`agent_threads`、`agent_runs_v2`、`agent_run_events`、`artifacts`、`evidence` |
 | `20260920_0002_consent_resume` | 同意与运行恢复相关（`ai_consents_v2`、`resume_input` 等） |
 | `20260925_0003_research_core` | 科研核心表（`manuscripts`…`tasks`）+ `projects` 客户端字段 + owner 列指向 `users(id)` 的 FK |
+| `20260927_0004_training_org_lms` | 训练/组织/LMS 表（`training_programs`…`training_lms_links`、`organizations`、`organization_members`）+ identity 列指向 `users(id)` 的 FK + seed 默认组织 |
+| `20260927_0005_consent_audit` | `ai_consents_v2` 增 `program_id`/`training_task_id`/`purpose`/`data_categories`/`sensitive_scan`；新增 `audit_ledger`（SHA-256 哈希链） |
 
 > 新增迁移后同步更新本表与 `doc/architecture.md` 的数据层说明。
 
@@ -134,13 +136,37 @@ projects ──┬─(N) agent_threads ──(N) agent_runs_v2 ──┬─(N) a
 
 ### 4.6 数据 API（`/v1/data/*`）
 
-`app/api/v1/data/` 包：`projects`、`manuscripts`、`manuscript-blocks`（含 `reorder`）、`bib-items`（含 `bulk`）、`tasks`。JSON 收发为 **camelCase**（`CamelModel` 别名生成）；鉴权用签名身份解析的 `owner_id`，跨用户返回 `404`。剩余科研实体（versions/attachments/rag-chunks/experiments/submissions/review-rounds/rebuttal-items）随 1a 继续补齐。
+`app/api/v1/data/` 包：`projects`、`manuscripts`、`manuscript-blocks`（reorder / 快照 / `rollback`）、`manuscript-versions`、`bib-items`（含 `bulk`）、`rag-chunks`、`attachments`（multipart 上传 / 鉴权下载）、`experiments`、`submissions`、`review-rounds`、`rebuttal-items`、`tasks` 共 12 资源。JSON 收发为 **camelCase**（`CamelModel` 别名生成）；鉴权用签名身份解析的 `owner_id`，跨用户返回 `404`。blocks 的内容快照与哈希由后端负责。
+
+### 4.7 训练 / 组织 / LMS 表（迁移 `20260927_0004`）
+
+来源：`services/backend/app/models/training.py`。identity 列（`owner_id` / `learner_id` / `reviewer_id` / `created_by` / `user_id` / `reviewer_learner_id`）在迁移中加 FK → `users(id)`，ORM **不**声明。
+
+| 表 | 关键列 | 说明 |
+| --- | --- | --- |
+| `organizations` | `id`、`name`、`slug`(unique)、`created_at` | 租户边界；迁移 seed `default` 组织 |
+| `organization_members` | `org_id`(FK)+`user_id`(PK)、`role`(`org_admin`/`librarian`/`viewer`)、`created_at` | 组织成员（复合主键） |
+| `training_programs` | `id`、`name`、`owner_id`、`cohort_name`、`start_date`、`end_date`、`max_members`、`status`、`organization_id`(FK)、时间戳 | 训练营（camp） |
+| `training_enrollments` | `id`、`program_id`(FK)、`learner_id`、`status`、`role`(`learner`/`ta`)、`last_nudged_at`、`joined_at`；`UNIQUE(program_id, learner_id)` | 报名 / 助教 |
+| `training_submissions` | `id`、`program_id`(FK)、`task_id`、`learner_id`、`answers`(JSONB)、`reflection`、`status`、`peer_status`、`claimed_by`、`claimed_at`、`updated_at`；`UNIQUE(program_id, task_id, learner_id)` | 提交 |
+| `training_reviews` | `id`、`submission_id`(FK)、`reviewer_id`、`decision`、`feedback`、`score`(0–100)、`created_at` | 评审 |
+| `training_tasks` | `id`(text)、`program_id`(FK)、`project_id`、`title`、`dimension`、`steps`(JSONB)、`status`、`requires_review`、时间戳 | 旧本地实体镜像 |
+| `evidence_cards` | `id`(text)、`submission_id`(text)、`project_id`、`claim`、`verification_status`、`evidence_strength`、`bib_item_id` | 证据卡 |
+| `training_program_tasks` | `id`、`program_id`(FK)、`task_id`、`ordinal`、`due_at`、`required`、`requires_review_override`；`UNIQUE(program_id, task_id)` | 课程表 |
+| `training_task_packs` | `id`、`pack_key`(unique)、`name`、`source`、`manifest`(JSONB)、`organization_id`(FK) | 任务包 |
+| `training_task_definitions` | `id`(text)、`pack_id`(FK)、`agent`、`dimension`、`steps`(JSONB)、`peer_review` | 任务定义 |
+| `training_certificates` | `id`(text)、`program_id`(FK)、`learner_id`、`content_hash`(unique)、`payload`(JSONB)、`issued_at` | 结业证 |
+| `training_peer_assignments` | `id`、`submission_id`(FK unique)、`program_id`(FK)、`reviewer_learner_id`、`status` | 互评分配 |
+| `training_peer_reviews` | `id`、`assignment_id`(FK unique)、`decision`、`score`、`evidence_card_ids`(text[]) | 互评结果 |
+| `training_lms_links` | `id`、`program_id`(FK unique)、`platform`、`client_secret`、`ags_lineitem_url`、`last_push_*` | LMS/LTI AGS（密钥仅服务端） |
+
+API：`/v1/training/*` — programs / enrollments / tasks / progress / report / organizations / submissions / me / reviews / peer / certificates（+`verify`、`me/certificate`）/ consents / nudge / task-packs / calendar / analytics/dashboard / export / lms（link、gradebook）。授权由 `app/core/authz.py` 纯策略 + `app/api/v1/training/deps.py` 解析 program/org 访问；聚合逻辑在 `app/training/*`（纯函数）。旧 Supabase RLS 已被 API 层取代。
 
 ---
 
 ## 5. pgvector 与检索
 
-状态：`bib_items.embedding` 与 `rag_chunks.embedding`（`vector(384)`）已在迁移 `20260925_0003` 建好；服务端嵌入与 `/v1/vectors` 检索接口在 1a 后续实现（`sentence-transformers` 通过 `[vectors]` extra 安装）。
+状态：`bib_items.embedding` 与 `rag_chunks.embedding`（`vector(384)`）已在迁移 `20260925_0003` 建好；`/v1/vectors` embed/search/status 已落地（`app/vectors/*`，`sentence-transformers` 通过 `[vectors]` extra 安装，未安装时返回 503）。
 
 - 启用 `vector` 扩展（`db/init/000_extensions.sql`）。
 - 文献/RAG 文本块的嵌入在**服务端**计算并存入 `vector` 列。
@@ -152,8 +178,8 @@ projects ──┬─(N) agent_threads ──(N) agent_runs_v2 ──┬─(N) a
 
 ## 6. 审计与同意
 
-- **同意**：创建 Agent 运行要求存在与项目/用户匹配、`redaction_confirmed=true` 的 `ai_consents_v2`，且 `external_services` 含 `crossref`，否则 `403 EXTERNAL_AI_CONSENT_REQUIRED`。
-- **审计**：SHA-256 哈希链（`entry[N].parentHash == entry[N-1].outputHash`）；Stage 1 起落在后端审计表，客户端不再持有账本。
+- **同意**：`ai_consents_v2`（迁移 `20260927_0005` 扩展 `program_id`/`training_task_id`/`purpose`/`data_categories`/`sensitive_scan`）。训练提交要求匹配 program、`purpose='training_submit'`、`redaction_confirmed=true` 且 30 分钟内的同意证明，否则 `403 CONSENT_*`。
+- **审计**：`audit_ledger`（迁移 `20260927_0005`）为 SHA-256 哈希链（`entry[N].parent_hash == entry[N-1].output_hash`）；`/v1/training/me`、`/reviews`、`/peer` 已落库，客户端账本随 `lib/local/*` 删除。
 
 ---
 

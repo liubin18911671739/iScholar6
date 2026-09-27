@@ -381,14 +381,29 @@ data: <json>
 
 ## 9. MCP
 
-目标（Stage 3）：
+已实现（Stage 3）：
 
-- **客户端池**：Python MCP 客户端连接 scholar / citations / journals / iScholar 工具服务。
-- **服务端**：iScholar 暴露自身 MCP 端点，供外部编排。
-- **守卫**：SSRF（仅 HTTPS、禁私有主机）与 2 MiB 体量上限从旧实现迁移。
-- **同意**：外部工具调用仍需 `consentProof`（`consentId`）。
+- **工具**：`scholar.search`、`openalex_search`、`crossref_lookup`、`semantic_scholar`、`journal_finder`，以及 iScholar 领域工具 `ischolar.list_projects` / `ischolar.search_bibliography` / `ischolar.manuscript_outline`（`app/mcp/tools/ischolar.py`）。
+- **服务端**：`app/mcp/server.py` 用 FastMCP 暴露上述工具；stdio 运行 `python -m app.mcp.server`，或 `build_mcp_http_app()`（streamable HTTP，设置 `MCP_SERVER_TOKEN` 时强制 Bearer）。
+- **客户端池**：`app/mcp/pool.py` 连接 `MCP_SERVERS`（streamable HTTP）并按工具名路由；未配置时回退进程内注册表。
+- **守卫**：`app/mcp/guards.py` 迁移旧实现——仅 HTTPS、禁私有/链路本地/元数据主机、禁嵌入凭据、禁重定向、响应上限 2 MiB（`MCP_RESPONSE_MAX_BYTES`）；入站上限 `MCP_REQUEST_MAX_BYTES`。
+- **REST + BFF**：`/v1/mcp/tools`（签名身份 + `ai_consents_v2` 同意校验）；web 侧 `app/api/mcp/[tool]` 为薄代理（重映射旧扁平 body）。
+- **运行时**：`AgentHarness.call_tool` 经注册表执行（保留 allow-list、预算、运行事件）。
 
-迁移期旧实现：`lib/mcp/gateway.ts`（工具注册表）+ `app/api/mcp/[tool]/route.ts`（进程内学术检索代理）。
+待续：声明式/插件工具持久化（Stage 6）。
+
+迁移期旧实现：`lib/mcp/gateway.ts` + `lib/plugins/mcp-declarative.ts`（SSRF/2 MiB 守卫来源）。
+
+## 9.1 Agent 图与评估（Stage 4/5）
+
+- **每智能体一图**：`app/agents/graphs/{topic,litreview,design,data,write,submit,rebuttal}.py`（+`hermes.py` 对话图）；共享 `_common.build_agent_graph`（`plan → context → research → draft(model) → review(interrupt)`）。
+- **提示词**：`app/agents/prompts.py` 移植系统提示与用户提示组装（含 Hermes 模块助手提示）。
+- **上下文**：`contextFrom` → 从 `artifacts` 取上游已批准产物注入（`maxChars` 生效）。
+- **结构化输出**：`app/agents/schemas.py`（Zod → Pydantic，解析最后一个 ```json 围栏）。
+- **模型**：`app/agents/model.py` 提供确定性 `FakeModel`（`AGENT_MODEL_FAKE`）与 DeepSeek（`langchain-openai`，`deepseek-v4-flash`）。
+- **运行时**：`runtime.execute_run` 按 `run.agent` 分派图与工具 allow-list；`/v1/agent` 持久化运行与 SSE。
+- **奇偶校验**：`tests/test_agent_parity.py`（提示词子串 + 结构化解析）。
+- **评估**：`services/eval` 数据集 + 确定性检查 + 阈值报告；`pnpm agent:eval`（离线默认，`EVAL_MODE=live` 走 `/v1/agent`）。
 
 ---
 

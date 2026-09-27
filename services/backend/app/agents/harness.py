@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.tools import BUILTIN_TOOLS
+from app.mcp.registry import registry
 from app.models import AgentRun, Artifact, Evidence, RunEvent, RunStatus
 
 
@@ -49,14 +49,14 @@ class AgentHarness:
 
     async def call_tool(self, name: str, **arguments: Any) -> Any:
         await self.ensure_active()
-        if name not in self.allowed_tools or name not in BUILTIN_TOOLS:
+        if name not in self.allowed_tools or registry.get(name) is None:
             raise HarnessError(f"TOOL_NOT_ALLOWED: {name}")
         count = await self.session.scalar(select(func.count()).select_from(RunEvent).where(RunEvent.run_id == self.run_id, RunEvent.type == "tool.completed"))
         if count >= self.max_tool_calls:
             raise HarnessError("TOOL_BUDGET_EXCEEDED")
         await self.emit("tool.started", {"name": name, "arguments": arguments})
         try:
-            result = await BUILTIN_TOOLS[name](**arguments)
+            result = await registry.call(name, arguments)
             await self.ensure_active()
         except Exception as exc:
             await self.emit("tool.failed", {"name": name, "error": str(exc)})

@@ -1,7 +1,14 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Clear browser storage used by local auth and IndexedDB. */
+import { E2E_LEARNER, E2E_STAFF } from "./credentials";
+
+export { E2E_LEARNER, E2E_STAFF };
+
+type E2EUser = { email: string; password: string };
+
+/** Clear cookies plus browser storage (locale / IndexedDB caches). */
 export async function resetBrowserState(page: Page) {
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.evaluate(() => {
     localStorage.clear();
@@ -13,61 +20,36 @@ export async function resetBrowserState(page: Page) {
       req.onblocked = () => resolve();
     });
   });
-  await page.reload();
 }
 
-/**
- * First-time local password setup (or unlock if a hash already exists).
- * Assumes NEXT_PUBLIC_COLLABORATIVE_MODE=false on the Playwright webServer.
- */
-export async function loginLocally(page: Page, password = "TestPass1") {
-  await resetBrowserState(page);
+/** Sign in through the Auth.js credentials form. */
+export async function login(page: Page, user: E2EUser = E2E_STAFF) {
   await page.goto("/login");
-
-  // Guard: collaborative email form must not appear in the default suite.
-  await expect(page.locator("#email")).toHaveCount(0);
-  const passwordInput = page.locator("#password");
-  await expect(passwordInput).toBeVisible();
-  await passwordInput.fill(password);
-
-  const confirm = page.locator("#confirm");
-  if (await confirm.isVisible().catch(() => false)) {
-    await confirm.fill(password);
-  }
-
-  await page.locator('button[type="submit"]').click();
+  await page.locator("#email").fill(user.email);
+  await page.locator("#password").fill(user.password);
+  await page.getByRole("button", { name: /登录|sign in|log in/i }).click();
   await expect(page).toHaveURL(/\/(dashboard|projects)/, { timeout: 15_000 });
 }
 
 /**
- * Seed local auth + session without going through the form.
- * Prefer this in beforeEach for speed once local mode is guaranteed.
+ * Programmatic Auth.js credentials sign-in (fast path for `beforeEach`).
+ * Fetches a CSRF token, posts to the credentials callback so the session
+ * cookie lands in the browser context, then lands on an authenticated page.
  */
-export async function authenticateLocally(page: Page, password = "TestPass1") {
-  await page.goto("/login");
-  await page.evaluate(async (value) => {
-    localStorage.clear();
-    sessionStorage.clear();
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase("ischolar-v6-local");
-      req.onsuccess = () => resolve();
-      req.onerror = () => resolve();
-      req.onblocked = () => resolve();
-    });
-    const salt = "e2e-test-salt";
-    const bytes = new TextEncoder().encode(salt + value);
-    const digest = await crypto.subtle.digest("SHA-256", bytes);
-    const hash = Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-    localStorage.setItem("ischolar_auth_salt", salt);
-    localStorage.setItem("ischolar_auth_hash", hash);
-    sessionStorage.setItem(
-      "ischolar_auth_session",
-      JSON.stringify({ authenticated: true, createdAt: Date.now() })
-    );
-  }, password);
-  // Land on an authenticated shell page so subsequent UI actions work.
+export async function authenticate(page: Page, user: E2EUser = E2E_STAFF) {
+  await page.context().clearCookies();
+  const csrfResponse = await page.request.get("/api/auth/csrf");
+  const { csrfToken } = (await csrfResponse.json()) as { csrfToken: string };
+  await page.request.post("/api/auth/callback/credentials", {
+    form: {
+      email: user.email,
+      password: user.password,
+      csrfToken,
+      callbackUrl: "/dashboard",
+    },
+    maxRedirects: 0,
+  });
+
   await page.goto("/projects");
   await expect(page).toHaveURL(/\/projects/, { timeout: 15_000 });
   await expect(page.getByTestId("new-project")).toBeVisible({ timeout: 15_000 });
@@ -76,7 +58,7 @@ export async function authenticateLocally(page: Page, password = "TestPass1") {
 export async function createProject(page: Page, name = "E2E Test Project") {
   await page.goto("/projects");
   if (page.url().includes("/login")) {
-    await loginLocally(page);
+    await authenticate(page);
     await page.goto("/projects");
   }
 

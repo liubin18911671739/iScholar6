@@ -5,8 +5,10 @@ import uuid
 from app.core.authz import (
     OrgRole,
     Role,
+    can_manage_org,
     can_manage_program,
     can_manage_project,
+    can_read_program,
     can_review_submission,
     is_global_admin,
     is_global_staff,
@@ -64,3 +66,18 @@ def test_can_review_submission() -> None:
     assert can_review_submission(Role.ADMIN, is_program_ta=False) is True
     assert can_review_submission(Role.LEARNER, is_program_ta=True) is True
     assert can_review_submission(Role.LEARNER, is_program_ta=False) is False
+
+
+def test_can_manage_org() -> None:
+    assert can_manage_org(Role.ADMIN, org_role=None) is True
+    assert can_manage_org(Role.LEARNER, org_role=OrgRole.ORG_ADMIN) is True
+    assert can_manage_org(Role.LEARNER, org_role=OrgRole.LIBRARIAN) is True
+    assert can_manage_org(Role.LEARNER, org_role=OrgRole.VIEWER) is False
+    assert can_manage_org(Role.LEARNER, org_role=None) is False
+
+
+def test_can_read_program() -> None:
+    assert can_read_program(can_manage=True, is_program_ta=False, is_enrolled=False) is True
+    assert can_read_program(can_manage=False, is_program_ta=True, is_enrolled=False) is True
+    assert can_read_program(can_manage=False, is_program_ta=False, is_enrolled=True) is True
+    assert can_read_program(can_manage=False, is_program_ta=False, is_enrolled=False) is False

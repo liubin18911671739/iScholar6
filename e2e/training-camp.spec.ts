@@ -1,12 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { authenticateLocally, createProject } from "./helpers/auth";
+import { authenticate, createProject } from "./helpers/auth";
 
 test.describe("AI Research Training Camp", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateLocally(page);
+    await authenticate(page);
   });
 
   test("creates a training camp and enrolls a learner", async ({ page }) => {
+    // Camp management still runs on the legacy Supabase collaborative layer;
+    // it is covered by the real-Supabase suite until the Stage 1b backend
+    // migration lands. Skip in the default (local-mode) run.
+    test.skip(!process.env.REAL_SUPABASE_E2E, "Requires Supabase collaborative mode");
+
     await page.goto("/training/manage");
     await expect(
       page.getByRole("heading", { name: /训练营与班级管理|Training camps/i })

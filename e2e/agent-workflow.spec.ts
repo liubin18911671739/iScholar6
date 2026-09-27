@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { authenticateLocally, createProject } from "./helpers/auth";
+import { authenticate, createProject } from "./helpers/auth";
 
 test.describe("Agent Workflow", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateLocally(page);
+    await authenticate(page);
   });
 
   test("can create a project and navigate to agent page", async ({ page }) => {

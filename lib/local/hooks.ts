@@ -1,32 +1,103 @@
 /**
- * Local Hooks Barrel (lib/local/hooks.ts)
+ * Data hooks barrel / backend switch (lib/local/hooks.ts)
  *
  * Functionality:
- * - Re-exports every Dexie/local data hook and mutation helper grouped by entity.
- * - Preserves the historical `@/lib/local/hooks` import path after the split into ./hooks/*.
- * - Surfaces projects, manuscripts, citations, attachments, experiments, submissions, reviews, agent runs, tasks, training, audit, versions, and cost.
+ * - Preserves the historical `@/lib/local/hooks` import path for all consumers.
+ * - Selects research-core hooks from either the legacy Dexie/Supabase layer or the
+ *   React Query + BFF layer in `lib/client/hooks` based on `NEXT_PUBLIC_DATA_BACKEND`.
+ * - Always re-exports legacy-only hooks (agent runs, training, audit, cost).
  *
  * Notes:
- * - Thin aggregator only; implementations live in the per-entity modules under ./hooks/.
+ * - `NEXT_PUBLIC_DATA_BACKEND` is inlined by Next; default is `legacy`.
+ * - Kept in sync with `lib/local/hooks/index.ts` (legacy implementation barrel).
  *
  * @author mrpi
- * @date 2026-09-16
+ * @date 2026-09-27
  */
 
-// Barrel re-exports — all hooks are now organized by entity in ./hooks/
-// Import paths remain backward-compatible: `from "@/lib/local/hooks"`
-export { now } from "./hooks/utils";
-export { useLocalProjects, useLocalProject, createProject, updateProject, deleteProject, hardDeleteProject } from "./hooks/projects";
-export { useLocalManuscripts, useLocalManuscriptBlocks, createManuscript, updateManuscript, createManuscriptBlock, updateManuscriptBlock, deleteManuscriptBlock, reorderManuscriptBlocks } from "./hooks/manuscripts";
-export { useLocalBibItems, createBibItem, updateBibItem, deleteBibItem, bulkCreateBibItems } from "./hooks/bib-items";
-export { useLocalAttachments, useLocalRagChunks, createAttachment, updateAttachment, deleteAttachment } from "./hooks/attachments";
-export { useLocalExperiments, createExperiment, updateExperiment, deleteExperiment } from "./hooks/experiments";
-export { useLocalSubmissions, createSubmission, updateSubmission, deleteSubmission } from "./hooks/submissions";
-export { useLocalReviewRounds, createReviewRound, updateReviewRound, deleteReviewRound } from "./hooks/review-rounds";
-export { useLocalRebuttalItems, createRebuttalItem, updateRebuttalItem, deleteRebuttalItem } from "./hooks/rebuttal-items";
-export { useLocalAgentRuns, useLocalAllAgentRuns, updateAgentRunStatus, getLatestApprovedRun, getLatestAgentRunInputs, useWorkflowProgress, useLatestAgentRun } from "./hooks/agent-runs";
-export { useLocalTasks, createTask, updateTask, deleteTask } from "./hooks/tasks";
-export { useTrainingPrograms, useTrainingEnrollments, useReviewQueue, useTrainingClassReport, createTrainingProgram, enrollLearner } from "./hooks/training-admin";
+import * as legacy from "./hooks/index";
+import * as backend from "@/lib/client/hooks";
+
+// Research-core hooks resolve to the backend when the flag is on, legacy otherwise.
+const research = process.env.NEXT_PUBLIC_DATA_BACKEND === "backend" ? backend : legacy;
+
+// ── Research core (switchable) ────────────────────────────────────────────
+export const useLocalProjects = research.useLocalProjects;
+export const useLocalProject = research.useLocalProject;
+export const createProject = research.createProject;
+export const updateProject = research.updateProject;
+export const deleteProject = research.deleteProject;
+export const hardDeleteProject = research.hardDeleteProject;
+
+export const useLocalManuscripts = research.useLocalManuscripts;
+export const useLocalManuscriptBlocks = research.useLocalManuscriptBlocks;
+export const createManuscript = research.createManuscript;
+export const updateManuscript = research.updateManuscript;
+export const createManuscriptBlock = research.createManuscriptBlock;
+export const updateManuscriptBlock = research.updateManuscriptBlock;
+export const deleteManuscriptBlock = research.deleteManuscriptBlock;
+export const reorderManuscriptBlocks = research.reorderManuscriptBlocks;
+
+export const useManuscriptVersions = research.useManuscriptVersions;
+export const useBlockVersions = research.useBlockVersions;
+export const rollbackToVersion = research.rollbackToVersion;
+
+export const useLocalBibItems = research.useLocalBibItems;
+export const createBibItem = research.createBibItem;
+export const updateBibItem = research.updateBibItem;
+export const deleteBibItem = research.deleteBibItem;
+export const bulkCreateBibItems = research.bulkCreateBibItems;
+
+export const useLocalAttachments = research.useLocalAttachments;
+export const useLocalRagChunks = research.useLocalRagChunks;
+export const createAttachment = research.createAttachment;
+export const updateAttachment = research.updateAttachment;
+export const deleteAttachment = research.deleteAttachment;
+
+export const useLocalExperiments = research.useLocalExperiments;
+export const createExperiment = research.createExperiment;
+export const updateExperiment = research.updateExperiment;
+export const deleteExperiment = research.deleteExperiment;
+
+export const useLocalSubmissions = research.useLocalSubmissions;
+export const createSubmission = research.createSubmission;
+export const updateSubmission = research.updateSubmission;
+export const deleteSubmission = research.deleteSubmission;
+
+export const useLocalReviewRounds = research.useLocalReviewRounds;
+export const createReviewRound = research.createReviewRound;
+export const updateReviewRound = research.updateReviewRound;
+export const deleteReviewRound = research.deleteReviewRound;
+
+export const useLocalRebuttalItems = research.useLocalRebuttalItems;
+export const createRebuttalItem = research.createRebuttalItem;
+export const updateRebuttalItem = research.updateRebuttalItem;
+export const deleteRebuttalItem = research.deleteRebuttalItem;
+
+export const useLocalTasks = research.useLocalTasks;
+export const createTask = research.createTask;
+export const updateTask = research.updateTask;
+export const deleteTask = research.deleteTask;
+
+// ── Legacy-only (agent runs / training / audit / cost) ────────────────────
+export { now } from "./hooks/index";
+export {
+  useLocalAgentRuns,
+  useLocalAllAgentRuns,
+  updateAgentRunStatus,
+  getLatestApprovedRun,
+  getLatestAgentRunInputs,
+  useWorkflowProgress,
+  useLatestAgentRun,
+} from "./hooks/index";
+export {
+  useTrainingPrograms,
+  useTrainingEnrollments,
+  useReviewQueue,
+  useTrainingClassReport,
+  createTrainingProgram,
+  enrollLearner,
+} from "./hooks/index";
 export {
   useTrainingTasks,
   useTrainingSubmissions,
@@ -40,8 +111,7 @@ export {
   hasRecentAiConsent,
   getRecentAiConsent,
   useTrainingReportData,
-} from "./hooks/training";
-export { useLocalAuditEntries } from "./hooks/audit";
-export { useManuscriptVersions, useBlockVersions, rollbackToVersion } from "./hooks/versions";
-export type { CostSummary } from "./hooks/cost";
-export { useCostSummary } from "./hooks/cost";
+} from "./hooks/index";
+export { useLocalAuditEntries } from "./hooks/index";
+export type { CostSummary } from "./hooks/index";
+export { useCostSummary } from "./hooks/index";

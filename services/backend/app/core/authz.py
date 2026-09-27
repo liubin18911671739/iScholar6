@@ -76,3 +76,13 @@ def can_manage_program(
 def can_review_submission(role: str | None, *, is_program_ta: bool) -> bool:
     """Staff or the submission program's TA may review."""
     return is_global_staff(role) or is_program_ta
+
+
+def can_manage_org(role: str | None, *, org_role: str | None) -> bool:
+    """Admins, org_admins, and org librarians may administer an organization."""
+    return is_org_staff(role, org_role)
+
+
+def can_read_program(*, can_manage: bool, is_program_ta: bool, is_enrolled: bool) -> bool:
+    """Mirror of the legacy ``can_read_program`` RLS predicate."""
+    return can_manage or is_program_ta or is_enrolled

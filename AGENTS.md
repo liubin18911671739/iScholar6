@@ -8,14 +8,17 @@ before editing.
 
 ## Read before assuming architecture
 
-- `IMPLEMENTATION_PLAN.md` is the authoritative direction and stage status (currently Stage 0 in progress);
-  `TODO.md` tracks execution detail. `README.md` / `TODO.md` / `doc/*` were rewritten to the **target**
-  architecture.
+- `IMPLEMENTATION_PLAN.md` holds the authoritative direction (locked decisions + stage list); `TODO.md` is the
+  live execution log and is **more current** — it records **Stage 0 and Stage 1a complete** (Stage 1 still in
+  progress: the frontend React Query data-layer migration remains), while the plan's stage checkboxes still
+  trail. `README.md` / `TODO.md` / `doc/*` describe the **target** architecture.
 - `CLAUDE.md` is the stale one—it still describes the **old** browser-local / opt-in-Supabase model (and
   `doc/database.md` has a legacy appendix). Trust executable config/code and the plan over prose.
 - Legacy data layer: `lib/local/*` (Dexie) and `lib/supabase/*`. New platform: `services/backend`,
   `services/eval`, reached from the web via `lib/server/backend.ts` and `app/api/agent/[...path]/route.ts`.
-- Only `/api/agent/[...path]` currently proxies to the Python backend; most features still use the legacy path.
+- Two BFF proxies exist, both through `lib/server/backend-proxy.ts` (root allowlist: `agent`/`data`/`vectors`):
+  `/api/agent/[...path]` and `/api/data/[...path]`. The UI still calls legacy routes, so most features do
+  not reach the Python backend yet.
 
 ## Commands
 
@@ -28,7 +31,7 @@ pnpm dev / build / start / lint
 pnpm vitest run [path]           # all unit/component tests once; single file by path
 pnpm test:e2e                    # Playwright, auto-starts dev server on 3100
 pnpm playwright test e2e/<file>  # single E2E
-pnpm quality-gate                # lint -> vitest -> build -> e2e
+pnpm quality-gate                # lint -> vitest -> build -> e2e (currently fails on the e2e step, see below)
 pnpm quality-gate:full           # + supabase schema/acceptance + real-Supabase E2E
 pnpm exec tsc --noEmit           # no typecheck script; `pnpm build` also type-checks
 ```
@@ -38,10 +41,11 @@ Docker platform (new stack):
 pnpm docker:up / docker:down     # full compose stack (web/backend/worker/postgres/redis/proxy)
 pnpm agent:dev                   # backend hot-reload overlay; run web with `pnpm dev`
 pnpm agent:test                  # docker compose run --rm backend pytest
-pnpm agent:eval                  # eval profile (Stage 5 skeleton)
+pnpm agent:eval                  # eval profile (Stage 5 skeleton); `--profile vectors` for embeddings
 docker compose config            # validate before changing compose
 ```
-Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `ruff check && pytest`.
+Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): run `uv sync --extra dev`
+first (the repo `.venv` lacks pytest/ruff), then `ruff check && pytest`.
 
 ## New platform (services/backend)
 
@@ -59,6 +63,8 @@ Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `r
   `alembic upgrade head` before backend/worker start. Add a revision; don't edit applied ones.
 - Graph nodes act through `AgentHarness` (`app/agents/harness.py`) for tool budgets, permissions, run events,
   and idempotent artifact writes—not direct domain writes.
+- `/v1/data/*` serializes camelCase in and out (`to_camel` alias generator in `app/api/v1/data/common.py`) and
+  returns **404** (not 403) for another user's row, even for staff. Match that convention in new routers.
 - `services/eval` is a runnable skeleton until Stage 5.
 
 ## Legacy data and sync gotchas (still live)
@@ -101,13 +107,18 @@ Backend directly (`services/backend`, Python 3.12, uv, ruff line-length 120): `r
 
 ## Testing quirks
 
-- `vitest.setup.ts` fakes `crypto.subtle.digest` and `crypto.randomUUID`, so hashes/UUIDs are deterministic
-  in unit tests.
+- `vitest.setup.ts` replaces `crypto.subtle.digest` with a deterministic non-crypto hash (stable across runs);
+  its `crypto.randomUUID` fallback is still random — don't assert exact UUIDs.
+- E2E authenticates through Auth.js credentials. `e2e/global-setup.ts` seeds staff/learner users into
+  Postgres and `playwright.config.ts` injects a host-reachable `AUTH_DATABASE_URL` (the compose `.env`
+  points at the docker-internal `postgres` host). Start Postgres first: `docker compose up -d --wait postgres`.
+  `pnpm test:e2e` runs 51 tests (the Supabase-only training-camp spec is skipped unless `REAL_SUPABASE_E2E=true`).
 - Playwright deliberately uses port 3100, `reuseExistingServer: false`, and `workers: 1` to avoid
   IndexedDB/dialog races—don't "optimize" this to parallel.
 - `e2e/supabase-collaboration.spec.ts` runs only with `REAL_SUPABASE_E2E=true` plus real Supabase credentials.
-- `tsconfig.json` includes only `app/`, `components/`, `lib/` (tests aren't in the app type-check);
-  `pyrightconfig.json` covers the Python services.
+- `tsconfig.json` type-checks `app/`, `components/`, `lib/`, `types/**/*.d.ts`, `middleware.ts` and
+  `next-env.d.ts`—**not** `__tests__/` or `e2e/` (a test-only type error passes `tsc`). `pyrightconfig.json`
+  covers the Python services.
 
 ## Conventions
 

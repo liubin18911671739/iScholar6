@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { authenticateLocally } from "./helpers/auth";
+import { authenticate } from "./helpers/auth";
 
 test.describe("Project Creation Wizard", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateLocally(page);
+    await authenticate(page);
   });
 
   test("wizard has 4 steps with progress indicator", async ({ page }) => {

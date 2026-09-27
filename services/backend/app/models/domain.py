@@ -61,6 +61,36 @@ class AiConsent(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     external_services: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     redaction_confirmed: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # Camp-scoped audit fields added by migration 20260927_0005.
+    program_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("training_programs.id", ondelete="SET NULL"), index=True
+    )
+    training_task_id: Mapped[str | None] = mapped_column(String(200))
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False, default="agent_run")
+    data_categories: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    sensitive_scan: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
+
+
+class AuditEntry(Base):
+    """Tamper-evident SHA-256 hash-chained audit record (migration 20260927_0005)."""
+
+    __tablename__ = "audit_ledger"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    agent_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    actor: Mapped[str | None] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(String(120), nullable=False)
+    prompt_hash: Mapped[str | None] = mapped_column(String(128))
+    input_hash: Mapped[str | None] = mapped_column(String(128))
+    output_hash: Mapped[str | None] = mapped_column(String(128))
+    consent_id: Mapped[str | None] = mapped_column(String(200))
+    parent_hash: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
 
 

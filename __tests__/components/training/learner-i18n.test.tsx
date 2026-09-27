@@ -9,7 +9,7 @@ import { createTranslator } from "next-intl";
 const originalCollaborativeMode = process.env.NEXT_PUBLIC_COLLABORATIVE_MODE;
 const originalFetch = globalThis.fetch;
 
-vi.mock("@/lib/local/hooks/projects", () => ({
+vi.mock("@/lib/local/hooks", () => ({
   useLocalProjects: () => ({
     data: [{ id: "project-id", name: "Project" }],
     error: null,

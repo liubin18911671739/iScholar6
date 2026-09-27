@@ -14,7 +14,7 @@ import { NextRequest } from "next/server";
 import { backendIdentityHeaders, backendUrl } from "@/lib/server/backend";
 
 /** Backend API roots the web BFF is allowed to reach. */
-export const ALLOWED_BACKEND_ROOTS = new Set(["agent", "data", "vectors"]);
+export const ALLOWED_BACKEND_ROOTS = new Set(["agent", "data", "vectors", "training", "mcp", "plugins"]);
 
 const RESPONSE_PASSTHROUGH_HEADERS = [
   "content-type",

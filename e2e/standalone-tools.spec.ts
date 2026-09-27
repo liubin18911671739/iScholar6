@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { authenticateLocally } from "./helpers/auth";
+import { authenticate } from "./helpers/auth";
 
 test.describe("Standalone Tools", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateLocally(page);
+    await authenticate(page);
   });
 
   test("tools page shows 3 tool cards", async ({ page }) => {

@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid, owned_project
+from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import AgentRun, AgentThread, AiConsent, Artifact, RunEvent, RunStatus
@@ -83,7 +84,7 @@ async def create_run(
         if existing:
             return {"ok": True, "data": serialize_run(existing)}
     consent = await session.scalar(select(AiConsent).where(AiConsent.id == body.consent_id, AiConsent.project_id == thread.project_id, AiConsent.owner_id == owner_id, AiConsent.redaction_confirmed.is_(True))) if body.consent_id else None
-    if not consent or "crossref" not in {service.lower() for service in consent.external_services}:
+    if get_settings().agent_require_consent and (not consent or not consent.external_services):
         raise HTTPException(status_code=403, detail="EXTERNAL_AI_CONSENT_REQUIRED")
     run = AgentRun(thread_id=thread.id, project_id=thread.project_id, owner_id=owner_id, goal=body.goal, agent=body.agent, input=body.input, consent_id=body.consent_id, idempotency_key=idempotency_key)
     session.add(run)

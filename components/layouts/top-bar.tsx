@@ -12,9 +12,8 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -42,16 +41,13 @@ const LOCALE_LABELS: Record<string, string> = {
 
 /** Application top bar with locale switching, logout, and user settings access. */
 export function TopBar({ onMenuToggle }: TopBarProps) {
-  const router = useRouter();
   const t = useTranslations("topbar");
   const tNav = useTranslations("nav");
   const { locale, setLocale } = useLocaleStore();
 
-  // Sign out of Supabase (when configured) and return to the login screen.
+  // Clear the Auth.js session and return to the login screen.
   function handleLogout() {
-    const supabase = createSupabaseBrowserClient();
-    if (supabase) supabase.auth.signOut();
-    router.push("/login");
+    void signOut({ callbackUrl: "/login" });
   }
 
   return (
