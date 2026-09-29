@@ -29,11 +29,23 @@ afterEach(() => {
 
 import { POST } from "@/app/api/hermes/chat/route";
 
+// Hermes requires an external-AI consent proof; all valid-request cases use this.
+const validConsent = {
+  consentId: "00000000-0000-0000-0000-000000000000",
+  consentedAt: new Date().toISOString(),
+  externalServices: ["deepseek"],
+  redactionConfirmed: true,
+};
+
 function buildRequest(body: Record<string, unknown>) {
   return new Request("http://localhost:3000/api/hermes/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      projectId: "00000000-0000-0000-0000-000000000001",
+      consentProof: validConsent,
+      ...body,
+    }),
   }) as any;
 }
 

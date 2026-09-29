@@ -57,10 +57,9 @@ async def test_mcp_server_lists_builtin_tools() -> None:
         "crossref_lookup",
         "semantic_scholar",
         "journal_finder",
-        "ischolar.list_projects",
-        "ischolar.search_bibliography",
-        "ischolar.manuscript_outline",
     } <= names
+    # Identity-scoped tools must not be exposed over the shared-token server.
+    assert not any(name.startswith("ischolar.") for name in names)
 
 
 def test_tool_invoke_model_aliases() -> None:

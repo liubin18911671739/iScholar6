@@ -6,7 +6,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import Field
+from pydantic import Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +15,7 @@ from app.api.v1.deps import identity_uuid
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import RagChunk
+from app.models.research import EMBEDDING_DIM
 
 router = APIRouter(prefix="/rag-chunks", tags=["data"])
 
@@ -22,8 +23,16 @@ router = APIRouter(prefix="/rag-chunks", tags=["data"])
 class RagChunkCreate(CamelModel):
     bib_item_id: uuid.UUID
     chunk_index: int = 0
-    content: str
+    content: str = Field(min_length=1)
     embedding: list[float] | None = None
+
+    @field_validator("embedding")
+    @classmethod
+    def _check_dim(cls, value: list[float] | None) -> list[float] | None:
+        """Reject wrong-dimension vectors up front (pgvector column is 384-dim)."""
+        if value is not None and len(value) != EMBEDDING_DIM:
+            raise ValueError(f"embedding must have {EMBEDDING_DIM} dimensions")
+        return value
 
 
 class RagChunkBulkCreate(CamelModel):

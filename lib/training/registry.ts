@@ -14,7 +14,7 @@
  */
 
 import type { AgentId } from "@/lib/ai/agents/registry";
-import type { TrainingDimension } from "@/lib/local/db";
+import type { TrainingDimension } from "@/lib/types/domain";
 
 /** Definition of a single built-in training task. */
 export interface TrainingTaskDefinition {

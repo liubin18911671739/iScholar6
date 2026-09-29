@@ -1,7 +1,5 @@
 """Agent prompts, schemas, model, and graph wiring (no network, no DB)."""
 
-import asyncio
-
 import pytest
 
 from app.agents.graphs import CONFIGS, allowed_tools_for, build_graph_for
@@ -51,23 +49,50 @@ async def test_fake_model_output_parses_for_every_agent() -> None:
         assert parse_agent_output(agent, result.text) is not None
 
 
-def test_get_model_defaults_to_fake_without_api_key() -> None:
-    from app.core.config import get_settings
+def test_get_model_defaults_to_fake_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agents import model as model_module
+    from app.core.config import Settings
 
-    settings = get_settings()
-    if not settings.deepseek_api_key or settings.agent_model_fake:
-        assert isinstance(get_model("topic"), FakeModel)
+    # No key (or the fake flag) ⇒ deterministic FakeModel.
+    monkeypatch.setattr(
+        model_module, "get_settings", lambda: Settings(agent_model_fake=True, deepseek_api_key=None)
+    )
+    assert isinstance(get_model("topic"), FakeModel)
+
+    # A configured key without the fake flag ⇒ DeepSeek model. Stub the class so
+    # the test does not construct a real network client.
+    class _StubDeepSeek:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    monkeypatch.setattr(model_module, "DeepSeekModel", _StubDeepSeek)
+    monkeypatch.setattr(
+        model_module, "get_settings", lambda: Settings(agent_model_fake=False, deepseek_api_key="sk-test")
+    )
+    assert isinstance(get_model("topic"), _StubDeepSeek)
 
 
 def test_graph_registry_and_tool_allowlist() -> None:
     assert set(BUILTINS) <= set(CONFIGS)
     assert "hermes" in CONFIGS
+    assert "orchestrator" in CONFIGS
     assert "scholar.search" in allowed_tools_for("litreview")
     assert allowed_tools_for("write") == set()
-    # Unknown agents fall back to the default graph without raising.
-    graph = build_graph_for("unknown", harness=None)  # type: ignore[arg-type]
-    assert hasattr(graph, "compile")
-    _ = asyncio  # keep import explicit for clarity
+    # Unknown agents raise instead of silently running the default graph.
+    try:
+        build_graph_for("unknown", harness=None)  # type: ignore[arg-type]
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("unknown agent must not build the default graph")
+    assert allowed_tools_for("coach") == set()
+    assert allowed_tools_for("p.demo.tool") == set()
+
+
+def test_coach_and_plugin_graphs_are_built() -> None:
+    # Coach and plugin agents resolve to generic builders (not the default graph).
+    assert build_graph_for("coach", harness=None) is not None  # type: ignore[arg-type]
+    assert build_graph_for("p.demo.polisher", harness=None) is not None  # type: ignore[arg-type]
 
 
 def test_hermes_system_prompt() -> None:

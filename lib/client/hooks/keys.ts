@@ -24,4 +24,5 @@ export const qk = {
   reviewRounds: (submissionId: string) => ["review-rounds", submissionId] as const,
   rebuttalItems: (reviewRoundId: string) => ["rebuttal-items", reviewRoundId] as const,
   tasks: (projectId: string) => ["tasks", projectId] as const,
+  audit: (projectId: string) => ["audit", projectId] as const,
 };

@@ -5,22 +5,31 @@ services:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ischolar}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ischolar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-ischolar}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ischolar} -d ${POSTGRES_DB:-ischolar}"]
+      # Use TCP (-h) so the check only passes after init scripts finish; the
+      # bootstrap server is socket-only. Also wait for the auth `users` table.
+      test:
+        - "CMD-SHELL"
+        - >-
+          pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-ischolar} -d ${POSTGRES_DB:-ischolar}
+          && psql -h 127.0.0.1 -U ${POSTGRES_USER:-ischolar} -d ${POSTGRES_DB:-ischolar}
+          -tAc "SELECT to_regclass('public.users')" | grep -q users
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 30
 
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
     volumes:
       - redisdata:/data
     healthcheck:
@@ -32,10 +41,12 @@ services:
   migrate:
     build:
       context: ./services/backend
+      target: prod
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
@@ -44,10 +55,12 @@ services:
   backend:
     build:
       context: ./services/backend
+      target: prod
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       STORAGE_DIR: ${STORAGE_DIR:-/data/storage}
     volumes:
@@ -58,7 +71,10 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/healthz')"]
@@ -70,15 +86,20 @@ services:
   worker:
     build:
       context: ./services/backend
+      target: prod
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       STORAGE_DIR: ${STORAGE_DIR:-/data/storage}
     volumes:
       - storage:${STORAGE_DIR:-/data/storage}
     command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -89,15 +110,20 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
+      args:
+        # NEXT_PUBLIC_* values are inlined at build time; they cannot be changed
+        # at runtime, so pass them as build args.
+        NEXT_PUBLIC_DATA_BACKEND: ${NEXT_PUBLIC_DATA_BACKEND:-legacy}
+        NEXT_PUBLIC_COLLABORATIVE_MODE: ${NEXT_PUBLIC_COLLABORATIVE_MODE:-false}
     env_file:
       - .env
     environment:
       AUTH_DATABASE_URL: ${AUTH_DATABASE_URL:-postgresql://ischolar:ischolar@postgres:5432/ischolar}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
-      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-dev-insecure-change-me}
-      AUTH_SECRET: ${AUTH_SECRET:-dev-insecure-change-me}
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:?AGENT_SERVICE_TOKEN is required}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,9 +133,19 @@ services:
         condition: service_started
     ports:
       - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   proxy:
     image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:

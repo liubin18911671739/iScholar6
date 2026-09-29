@@ -1,40 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { applyTemplate } from "@/lib/plugins/prompt-resolve";
-import {
-  __resetPluginRegistryForTests,
-  rehydrateFromInstalls,
-} from "@/lib/plugins/registry";
+import { __resetPluginRegistryForTests } from "@/lib/plugins/registry";
 import { resolveSystemPrompt } from "@/lib/plugins/prompt-resolve";
-import type { LocalPluginInstall } from "@/lib/local/db";
+import type { LocalPluginInstall } from "@/lib/types/domain";
 
-vi.mock("@/lib/local/db", () => {
-  const selections = new Map<string, { id: string; packRef: string; updatedAt: string }>();
-  return {
-    localDB: {
-      promptPackSelections: {
-        get: async (id: string) => selections.get(id),
-        put: async (row: { id: string; packRef: string; updatedAt: string }) => {
-          selections.set(row.id, row);
-        },
-        delete: async (id: string) => {
-          selections.delete(id);
-        },
-        toArray: async () => Array.from(selections.values()),
-      },
-      pluginInstalls: {
-        toArray: async () => [],
-        get: async () => undefined,
-        put: async () => undefined,
-        delete: async () => undefined,
-        update: async () => undefined,
-      },
-    },
-  };
-});
+const installs: LocalPluginInstall[] = [];
+const selections: Array<{ id: string; packRef: string; updatedAt: string }> = [];
+
+vi.mock("@/lib/client/plugins", () => ({
+  listInstalls: async () => installs,
+  listSelections: async () => selections,
+  upsertInstall: async () => undefined,
+  uninstall: async () => undefined,
+  putSelection: async () => undefined,
+  deleteSelection: async () => undefined,
+}));
 
 describe("prompt resolve", () => {
   beforeEach(() => {
     __resetPluginRegistryForTests();
+    installs.length = 0;
+    selections.length = 0;
   });
 
   it("applies mustache-like templates", () => {
@@ -70,14 +56,11 @@ describe("prompt resolve", () => {
         ],
       },
     };
-    rehydrateFromInstalls([install]);
+    installs.push(install);
 
-    const { localDB } = await import("@/lib/local/db");
-    await localDB.promptPackSelections.put({
-      id: "litreview",
-      packRef: "cs-hci-prompts/default",
-      updatedAt: new Date().toISOString(),
-    });
+    const { bootstrapPlugins } = await import("@/lib/plugins/install");
+    selections.push({ id: "litreview", packRef: "cs-hci-prompts/default", updatedAt: new Date().toISOString() });
+    await bootstrapPlugins();
 
     const prompt = await resolveSystemPrompt("litreview");
     expect(prompt).toBe("HCI OVERRIDE PROMPT");

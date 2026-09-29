@@ -20,7 +20,7 @@ import type {
   LocalEvidenceCard,
   LocalTrainingReview,
   LocalTrainingSubmission,
-} from "@/lib/local/db";
+} from "@/lib/types/domain";
 
 /** Default contribution weights (sum to 100) for the training rubric. */
 export const DEFAULT_RUBRIC_WEIGHTS = {

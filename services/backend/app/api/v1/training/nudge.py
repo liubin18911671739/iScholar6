@@ -12,8 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, ok
-from app.api.v1.training.deps import global_role, is_program_ta, load_program
-from app.core.authz import is_global_staff
+from app.api.v1.training.deps import global_role, load_program, require_staff_or_ta
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingEnrollment
@@ -36,9 +35,8 @@ async def nudge(
     """Stamp ``last_nudged_at`` on active enrollments (staff or program TA)."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    await load_program(session, program_id)
-    if not is_global_staff(role) and not await is_program_ta(session, user_id, program_id):
-        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    program = await load_program(session, program_id)
+    await require_staff_or_ta(session, role, user_id, program)
     if not body.learner_ids and not body.all_active:
         raise HTTPException(status_code=422, detail="VALIDATION_ERROR")
 

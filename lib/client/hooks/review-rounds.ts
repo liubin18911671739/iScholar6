@@ -11,8 +11,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { LocalReviewRound } from "@/lib/local/db";
-import type { RemoteListQuery } from "@/lib/supabase/remote-query";
+import type { LocalReviewRound } from "@/lib/types/domain";
+import type { RemoteListQuery } from "@/lib/client/types";
 import * as api from "@/lib/client/data";
 import { getQueryClient } from "@/lib/client/query-client";
 import { qk } from "./keys";

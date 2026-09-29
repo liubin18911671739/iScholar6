@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import ok
-from app.api.v1.training.deps import display_names, global_role, is_program_ta, load_program
+from app.api.v1.training.deps import display_names, global_role, load_program, require_staff_or_ta
 from app.api.v1.training.progress import _review_likes, load_curriculum, load_reviews, load_submissions
-from app.core.authz import is_global_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingEnrollment
@@ -32,8 +31,7 @@ async def get_report(
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     program = await load_program(session, program_id)
-    if not is_global_staff(role) and not await is_program_ta(session, user_id, program_id):
-        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    await require_staff_or_ta(session, role, user_id, program)
 
     curriculum = await load_curriculum(session, program_id)
     submissions = await load_submissions(session, program_id)

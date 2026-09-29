@@ -26,6 +26,11 @@ class AgentState(TypedDict, total=False):
     draft: dict[str, Any]
     structured: dict[str, Any] | None
     approval: dict[str, Any]
+    # Training (coach) linkage, carried through the run.
+    training_task_id: str | None
+    program_id: str | None
+    mode: str | None
+    submission_id: str | None
 
 
 @dataclass
@@ -91,8 +96,12 @@ def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
 
     async def draft(state: AgentState) -> dict[str, Any]:
         model = get_model(config.agent)
-        system = SYSTEM_PROMPTS[config.agent]
-        user = build_user_prompt(config.agent, state.get("input", {}), state.get("context", ""))
+        agent_input = state.get("input", {}) or {}
+        # Client-resolved prompts (plugin packs, locale, context) win over defaults.
+        system = agent_input.get("systemPrompt") or SYSTEM_PROMPTS[config.agent]
+        user = agent_input.get("userPrompt") or build_user_prompt(
+            config.agent, agent_input, state.get("context", "")
+        )
         result = await model.generate(system, user)
         structured = parse_agent_output(config.agent, result.text)
         content: dict[str, Any] = {
@@ -124,6 +133,79 @@ def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
     builder.add_edge("plan", "context")
     builder.add_edge("context", "research")
     builder.add_edge("research", "draft")
+    builder.add_edge("draft", "review")
+    builder.add_edge("review", END)
+    return builder
+
+
+def build_generic_graph(
+    agent: str,
+    artifact_kind: str,
+    system_default: str,
+    harness: AgentHarness,
+    *,
+    allowed_tools: list[str] | None = None,
+):
+    """Plan → (research) → draft → review graph for coach/plugin agents.
+
+    Prompts come from the client-resolved ``input`` (plugin packs, locale,
+    context); there is no per-agent schema, so the artifact stores raw text.
+    """
+
+    async def plan(state: AgentState) -> dict[str, Any]:
+        await harness.emit("plan.created", {"agent": agent, "goal": state["goal"]})
+        return {}
+
+    async def research(state: AgentState) -> dict[str, Any]:
+        tools = allowed_tools or []
+        results: list[dict[str, Any]] = []
+        for tool in tools:
+            try:
+                output = await harness.call_tool(tool, query=state["goal"])
+            except Exception:
+                output = []
+            if isinstance(output, list):
+                results.extend(output)
+        return {"tool_results": results}
+
+    async def draft(state: AgentState) -> dict[str, Any]:
+        model = get_model(agent)
+        agent_input = state.get("input", {}) or {}
+        system = agent_input.get("systemPrompt") or system_default
+        user = agent_input.get("userPrompt") or state["goal"]
+        context = state.get("context", "")
+        if context:
+            user = f"{user}\n\n{context}"
+        result = await model.generate(system, user)
+        content: dict[str, Any] = {
+            "text": result.text,
+            "sources": state.get("tool_results", []),
+            "usage": {"tokenIn": result.token_in, "tokenOut": result.token_out},
+        }
+        artifact = await harness.save_draft(state["project_id"], artifact_kind, content)
+        return {"draft": {**content, "artifactId": str(artifact.id)}}
+
+    async def review(state: AgentState) -> dict[str, Any]:
+        decision = interrupt(
+            {
+                "kind": "artifact_review",
+                "artifact": state["draft"],
+                "message": "Review and approve the draft before publishing it.",
+            }
+        )
+        return {"approval": decision}
+
+    builder = StateGraph(AgentState)
+    builder.add_node("plan", plan)
+    builder.add_node("draft", draft)
+    builder.add_node("review", review)
+    builder.add_edge(START, "plan")
+    if allowed_tools:
+        builder.add_node("research", research)
+        builder.add_edge("plan", "research")
+        builder.add_edge("research", "draft")
+    else:
+        builder.add_edge("plan", "draft")
     builder.add_edge("draft", "review")
     builder.add_edge("review", END)
     return builder

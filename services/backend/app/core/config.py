@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +68,13 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}
+
+    @model_validator(mode="after")
+    def _reject_insecure_defaults(self) -> "Settings":
+        """Fail fast when production boots with the shipped placeholder secret."""
+        if self.is_production and self.agent_service_token == "dev-insecure-change-me":
+            raise ValueError("AGENT_SERVICE_TOKEN must be set to a non-default value in production")
+        return self
 
 
 @lru_cache

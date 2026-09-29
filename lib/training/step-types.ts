@@ -14,7 +14,7 @@
  */
 
 import type { AgentId } from "@/lib/ai/agents/registry";
-import type { TrainingDimension } from "@/lib/local/db";
+import type { TrainingDimension } from "@/lib/types/domain";
 import { MVP_TRAINING_TASKS, type TrainingTaskDefinition } from "./registry";
 
 /** Supported step input/widget types. */

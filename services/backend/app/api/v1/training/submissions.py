@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, iso, ok
 from app.api.v1.training.deps import (
+    can_manage_or_ta,
     can_review,
     global_role,
     is_enrolled,
@@ -20,6 +21,7 @@ from app.api.v1.training.deps import (
     require_read,
 )
 from app.core.db import get_session
+from app.core.notify import notify_program
 from app.core.security import Identity, require_identity
 from app.models import TrainingReview, TrainingSubmission
 from app.models.domain import now
@@ -27,6 +29,11 @@ from app.models.domain import now
 router = APIRouter(prefix="/submissions", tags=["training"])
 
 _DECISION_STATUS = {"approved": "completed", "escalated": "escalated", "needs_revision": "needs_review"}
+
+# Learners may only draft or submit; "completed"/"approved" are derived from a
+# staff review (prevents self-approval and certificate bypass).
+LEARNER_STATUSES = {"draft", "submitted"}
+REVIEWER_STATUSES = {"submitted", "needs_review", "escalated", "completed", "reviewed"}
 
 
 class SubmissionUpsert(CamelModel):
@@ -106,19 +113,17 @@ async def list_program_submissions(
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
-    """List a program's submissions (staff/TA or enrolled member)."""
+    """List a program's submissions: all for staff/TA, only the caller's own for learners."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     program = await load_program(session, program_id)
     await require_read(session, role, user_id, program)
 
-    rows = (
-        await session.scalars(
-            select(TrainingSubmission)
-            .where(TrainingSubmission.program_id == program_id)
-            .order_by(TrainingSubmission.updated_at.desc())
-        )
-    ).all()
+    stmt = select(TrainingSubmission).where(TrainingSubmission.program_id == program_id)
+    # Non-privileged (enrolled) members must not read peers' answers.
+    if not await can_manage_or_ta(session, role, user_id, program):
+        stmt = stmt.where(TrainingSubmission.learner_id == user_id)
+    rows = (await session.scalars(stmt.order_by(TrainingSubmission.updated_at.desc()))).all()
     return ok([serialize_submission(row) for row in rows])
 
 
@@ -132,6 +137,8 @@ async def upsert_submission(
     user_id = identity_uuid(identity)
     if not await is_enrolled(session, user_id, body.program_id):
         raise HTTPException(status_code=403, detail="NOT_ENROLLED")
+    if body.status is not None and body.status not in LEARNER_STATUSES:
+        raise HTTPException(status_code=422, detail="INVALID_STATUS")
 
     submission = await session.scalar(
         select(TrainingSubmission).where(
@@ -154,6 +161,12 @@ async def upsert_submission(
         submission.answers = body.answers
         submission.reflection = body.reflection
         submission.status = body.status or "submitted"
+    await notify_program(
+        session,
+        body.program_id,
+        "training.submission",
+        {"id": str(submission.id), "taskId": submission.task_id, "status": submission.status},
+    )
     await session.commit()
     return ok(serialize_submission(submission))
 
@@ -176,6 +189,8 @@ async def update_submission(
         raise HTTPException(status_code=403, detail="FORBIDDEN")
 
     if owner and not reviewer:
+        if body.status is not None and body.status not in LEARNER_STATUSES:
+            raise HTTPException(status_code=422, detail="INVALID_STATUS")
         if body.answers is not None:
             submission.answers = body.answers
         if body.reflection is not None:
@@ -183,6 +198,8 @@ async def update_submission(
         if body.status is not None:
             submission.status = body.status
     else:
+        if body.status is not None and body.status not in REVIEWER_STATUSES:
+            raise HTTPException(status_code=422, detail="INVALID_STATUS")
         if body.claim is True:
             submission.claimed_by = user_id
             submission.claimed_at = now()
@@ -191,6 +208,12 @@ async def update_submission(
             submission.claimed_at = None
         if body.status is not None:
             submission.status = body.status
+    await notify_program(
+        session,
+        submission.program_id,
+        "training.submission",
+        {"id": str(submission.id), "taskId": submission.task_id, "status": submission.status},
+    )
     await session.commit()
     return ok(serialize_submission(submission))
 
@@ -250,5 +273,11 @@ async def review_submission(
         score=body.score,
     )
     session.add(review)
+    await notify_program(
+        session,
+        submission.program_id,
+        "training.review",
+        {"id": str(review.id), "submissionId": str(submission.id), "decision": review.decision},
+    )
     await session.commit()
     return ok(serialize_review(review))

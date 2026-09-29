@@ -29,6 +29,10 @@ async def get_calendar(
     session: AsyncSession = Depends(get_session),
 ):
     """Return the month grid plus due-task events visible to the caller."""
+    if month is not None and not 1 <= month <= 12:
+        raise HTTPException(status_code=422, detail="INVALID_MONTH")
+    if year is not None and not 1900 <= year <= 3000:
+        raise HTTPException(status_code=422, detail="INVALID_YEAR")
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     staff = is_global_staff(role)

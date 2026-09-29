@@ -84,6 +84,7 @@ export { now } from "./hooks/index";
 export {
   useLocalAgentRuns,
   useLocalAllAgentRuns,
+  upsertAgentRun,
   updateAgentRunStatus,
   getLatestApprovedRun,
   getLatestAgentRunInputs,

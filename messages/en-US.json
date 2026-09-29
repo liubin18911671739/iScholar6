@@ -533,6 +533,19 @@
       "number": "At least one number"
     }
   },
+  "invite": {
+    "title": "Accept your invitation",
+    "subtitle": "Set a password to activate your iScholar account.",
+    "password": "Password",
+    "confirm": "Confirm password",
+    "submit": "Activate account",
+    "submitting": "Activating...",
+    "success": "Account activated. You can now sign in.",
+    "backToLogin": "Go to sign in",
+    "invalid": "This invite link is invalid or has expired.",
+    "weak": "Password must be at least 8 characters.",
+    "mismatch": "Passwords do not match."
+  },
   "landing": {
     "login": "Login",
     "getStarted": "Get Started",

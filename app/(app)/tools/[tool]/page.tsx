@@ -16,16 +16,15 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { nanoid } from "nanoid";
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { isValidAgent, AGENT_META } from "@/lib/ai/agents/registry";
 import { ToolWorkspace, type AgentStatus } from "@/components/tools/tool-workspace";
 import { useAgentRun } from "@/lib/ai/agents/use-agent-run";
 import { MarkdownText } from "@/components/ui/markdown-text";
-import { recordAiConsent } from "@/lib/local/hooks";
+import { recordAiConsent, createProject, hardDeleteProject } from "@/lib/local/hooks";
 import { containsSensitiveContent } from "@/lib/privacy/sensitive-content";
 
 /** Maps each standalone tool slug to the agent id that performs the work. */
@@ -134,18 +133,25 @@ export default function ToolPage() {
   const agentId = TOOL_AGENT_MAP[toolKey];
   const t = useTranslations("tools");
 
-  // Create a session-scoped virtual project ID
-  const projectIdRef = useRef(`__tool_${nanoid()}`);
-  const projectId = projectIdRef.current;
+  // Persist a real session-scoped project so backend consumes/audit rows validate.
+  const [projectId, setProjectId] = useState<string | null>(null);
 
-  // Cleanup on unmount
   useEffect(() => {
-    const pid = projectIdRef.current;
+    let cancelled = false;
+    let createdId: string | null = null;
+    createProject({ name: "Tool Run" })
+      .then((id) => {
+        if (cancelled) {
+          void hardDeleteProject(id).catch(() => {});
+          return;
+        }
+        createdId = id;
+        setProjectId(id);
+      })
+      .catch((error) => console.error("[tools] failed to create tool project", error));
     return () => {
-      // Clean up temp data (fire-and-forget)
-      import("@/lib/local/db").then(({ localDB }) => {
-        localDB.agentRuns.where("projectId").equals(pid).delete().catch(() => {});
-      });
+      cancelled = true;
+      if (createdId) void hardDeleteProject(createdId).catch(() => {});
     };
   }, []);
 
@@ -153,7 +159,7 @@ export default function ToolPage() {
   const setField = (key: string, value: string) =>
     setFieldState((prev) => ({ ...prev, [key]: value }));
 
-  const { status, progress, results, errorMessage, handleRun } = useAgentRun(agentId, projectId);
+  const { status, progress, results, errorMessage, handleRun } = useAgentRun(agentId, projectId ?? "");
 
   // Fall back to a not-found message when the slug has no valid agent.
   if (!agentId || !isValidAgent(agentId)) {
@@ -212,6 +218,7 @@ export default function ToolPage() {
       onRun={
         status === "idle" || status === "failed"
           ? async () => {
+              if (!projectId) return;
               const input = buildToolInput(toolKey, fieldState);
               // Block obvious sensitive data before anything leaves the browser.
               const blob = Object.values(input).map(String).join("\n");

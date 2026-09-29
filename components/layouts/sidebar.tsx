@@ -15,13 +15,11 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { fromRemoteRecord } from "@/lib/supabase/field-map";
-import type { LocalProject } from "@/lib/local/db";
+import { useLocalProjects } from "@/lib/client/hooks";
+import type { LocalProject } from "@/lib/types/domain";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -104,21 +102,8 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const projectMatch = pathname.match(/\/projects\/([^/]+)/);
   const urlProjectId = projectMatch?.[1];
 
-  const [projects, setProjects] = useState<LocalProject[]>([]);
-
-  useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) return;
-    supabase
-      .from("projects")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!error && data) {
-          setProjects(data.map((row) => fromRemoteRecord(row as Record<string, unknown>) as unknown as LocalProject));
-        }
-      });
-  }, []);
+  const { data: projectsData } = useLocalProjects();
+  const projects: LocalProject[] = projectsData ?? [];
 
   const activeProjectId =
     urlProjectId ?? projects.find((p) => p.status !== "archived")?.id;

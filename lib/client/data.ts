@@ -31,7 +31,7 @@ import type {
   LocalTask,
   ProjectMetadata,
   RebuttalEvidence,
-} from "@/lib/local/db";
+} from "@/lib/types/domain";
 
 const BASE = "/api/data";
 

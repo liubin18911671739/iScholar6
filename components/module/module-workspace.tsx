@@ -358,6 +358,7 @@ export function ModuleWorkspace({
         open={chatSheetOpen}
         onOpenChange={setChatSheetOpen}
         agentId={agentId}
+        projectId={projectId}
       />
     </div>
   );

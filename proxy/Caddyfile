@@ -1,8 +1,17 @@
 # iScholar reverse proxy.
-# Terminates TLS in production (automatic via Caddy) and fronts the web container.
-
-:80 {
+# Set DOMAIN (e.g. ischolar.example.edu) to get automatic ACME TLS; with the
+# default `localhost`, Caddy uses its internal CA. HTTP :80 redirects to HTTPS.
+{$DOMAIN:localhost} {
 	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
 
 	# Auth + API + app all served by Next.js.
 	reverse_proxy web:3000

@@ -2,20 +2,26 @@
  * Plugin Install (lib/plugins/install.ts)
  *
  * Functionality:
- * - Persists plugin installs and active prompt-pack selections in Dexie (`localDB`).
+ * - Persists plugin installs and active prompt-pack selections in Postgres via `/api/plugins`.
  * - Validates manifests, checks tool-name conflicts, and rehydrates the runtime registry.
  * - Supports enable/disable, uninstall cleanup, and listing packs available per agent.
  *
  * Side effects:
- * - Writes to `pluginInstalls` / `promptPackSelections` tables and mutates the in-memory registry.
+ * - Writes through the plugin client and mutates the in-memory registry.
  *
  * @author mrpi
  * @date 2026-09-16
  */
 
-import { localDB } from "@/lib/local/db";
-import type { LocalPluginInstall, LocalPromptPackSelection } from "@/lib/local/db";
-import { hashContent } from "@/lib/audit/ledger";
+import type { LocalPluginInstall } from "@/lib/types/domain";
+import {
+  deleteSelection,
+  listInstalls,
+  listSelections,
+  putSelection,
+  uninstall as deleteInstall,
+  upsertInstall,
+} from "@/lib/client/plugins";
 import { parsePluginManifest } from "./schema";
 import {
   assertToolsInstallable,
@@ -25,21 +31,28 @@ import {
 import { packRef, parsePackRef } from "./ids";
 import type { PluginManifest } from "./types";
 
-// Current timestamp helper for install/selection bookkeeping.
-function now() {
-  return new Date().toISOString();
-}
+// Active prompt-pack selections cached for the synchronous-ish resolver.
+const selectionCache = new Map<string, string>();
 
 /** List all persisted plugin installs sorted by id. */
 export async function listInstalledPlugins(): Promise<LocalPluginInstall[]> {
-  const rows = await localDB.pluginInstalls.toArray();
+  const rows = await listInstalls();
   return rows.sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** Load persisted installs and rebuild the runtime plugin registry. */
+/** Load persisted installs + selections and rebuild the runtime plugin registry. */
 export async function bootstrapPlugins(): Promise<void> {
-  const rows = await listInstalledPlugins();
+  const [rows, selections] = await Promise.all([listInstalls(), listSelections()]);
   rehydrateFromInstalls(rows);
+  selectionCache.clear();
+  for (const selection of selections) {
+    selectionCache.set(selection.id, selection.packRef);
+  }
+}
+
+/** Return the cached active pack ref for an agent, defaulting to `builtin`. */
+export function getCachedPackSelection(agentId: string): string | undefined {
+  return selectionCache.get(agentId);
 }
 
 /** Validate, persist, and rehydrate a plugin from a raw manifest input. */
@@ -56,51 +69,36 @@ export async function installPlugin(
     return { ok: false, error: e instanceof Error ? e.message : "tool conflict" };
   }
 
-  const existing = await localDB.pluginInstalls.get(manifest.id);
-  const ts = now();
-  const contentHash = await hashContent(JSON.stringify(manifest));
-  const row: LocalPluginInstall = {
+  const existing = getInstalledSnapshot().find((row) => row.id === manifest.id);
+  await upsertInstall({
     id: manifest.id,
     version: manifest.version,
     enabled: existing?.enabled ?? true,
-    installedAt: existing?.installedAt ?? ts,
-    updatedAt: ts,
     manifest,
-    contentHash,
-  };
-
-  await localDB.pluginInstalls.put(row);
-  const all = await listInstalledPlugins();
-  rehydrateFromInstalls(all);
+  });
+  rehydrateFromInstalls(await listInstalledPlugins());
   return { ok: true, pluginId: manifest.id };
 }
 
 /** Delete a plugin install and any prompt-pack selections referencing it. */
 export async function uninstallPlugin(pluginId: string): Promise<void> {
-  await localDB.pluginInstalls.delete(pluginId);
-
-  // Drop pack selections that reference this plugin.
-  const selections = await localDB.promptPackSelections.toArray();
-  for (const sel of selections) {
-    const parsed = parsePackRef(sel.packRef);
-    if (parsed?.pluginId === pluginId) {
-      await localDB.promptPackSelections.delete(sel.id);
-    }
+  await deleteInstall(pluginId);
+  for (const entry of Array.from(selectionCache.entries())) {
+    const [agentId, ref] = entry;
+    if (parsePackRef(ref)?.pluginId === pluginId) selectionCache.delete(agentId);
   }
-
   rehydrateFromInstalls(await listInstalledPlugins());
 }
 
 /** Toggle whether an installed plugin contributes agents, packs, and tools. */
-export async function setPluginEnabled(
-  pluginId: string,
-  enabled: boolean
-): Promise<void> {
-  const existing = await localDB.pluginInstalls.get(pluginId);
+export async function setPluginEnabled(pluginId: string, enabled: boolean): Promise<void> {
+  const existing = getInstalledSnapshot().find((row) => row.id === pluginId);
   if (!existing) throw new Error(`Plugin not installed: ${pluginId}`);
-  await localDB.pluginInstalls.update(pluginId, {
+  await upsertInstall({
+    id: existing.id,
+    version: existing.version,
     enabled,
-    updatedAt: now(),
+    manifest: existing.manifest,
   });
   rehydrateFromInstalls(await listInstalledPlugins());
 }
@@ -111,12 +109,13 @@ export async function setActivePromptPack(
   packRefValue: "builtin" | string
 ): Promise<void> {
   if (packRefValue === "builtin") {
-    await localDB.promptPackSelections.delete(agentId);
+    await deleteSelection(agentId);
+    selectionCache.delete(agentId);
     return;
   }
   const parsed = parsePackRef(packRefValue);
   if (!parsed) throw new Error(`Invalid pack ref: ${packRefValue}`);
-  const install = await localDB.pluginInstalls.get(parsed.pluginId);
+  const install = getInstalledSnapshot().find((row) => row.id === parsed.pluginId);
   if (!install?.enabled) throw new Error(`Pack plugin not enabled: ${parsed.pluginId}`);
   const pack = install.manifest.promptPacks?.find((p) => p.key === parsed.packKey);
   if (!pack) throw new Error(`Pack not found: ${packRefValue}`);
@@ -124,22 +123,19 @@ export async function setActivePromptPack(
     throw new Error(`Pack ${packRefValue} has no override for agent ${agentId}`);
   }
 
-  const row: LocalPromptPackSelection = {
-    id: agentId,
-    packRef: packRefValue,
-    updatedAt: now(),
-  };
-  await localDB.promptPackSelections.put(row);
+  await putSelection(agentId, packRefValue);
+  selectionCache.set(agentId, packRefValue);
 }
 
 /** Return the active pack ref for an agent, defaulting to `builtin`. */
 export async function getActivePromptPack(agentId: string): Promise<string> {
-  const row = await localDB.promptPackSelections.get(agentId);
-  return row?.packRef ?? "builtin";
+  return selectionCache.get(agentId) ?? "builtin";
 }
 
 /** List enabled prompt packs that provide an override for the given agent. */
-export function listPacksForAgent(agentId: string): Array<{ packRef: string; name: string; pluginId: string }> {
+export function listPacksForAgent(
+  agentId: string
+): Array<{ packRef: string; name: string; pluginId: string }> {
   const out: Array<{ packRef: string; name: string; pluginId: string }> = [];
   for (const install of getInstalledSnapshot()) {
     if (!install.enabled) continue;

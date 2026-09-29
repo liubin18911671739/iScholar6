@@ -7,7 +7,7 @@ import {
   listPluginAgents,
   rehydrateFromInstalls,
 } from "@/lib/plugins/registry";
-import type { LocalPluginInstall } from "@/lib/local/db";
+import type { LocalPluginInstall } from "@/lib/types/domain";
 
 const sample: LocalPluginInstall = {
   id: "ethics-kit",

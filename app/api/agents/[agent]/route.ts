@@ -72,7 +72,7 @@ export async function POST(
 
     // Require a valid redaction consent proof before calling the external service.
     const consentProof = body.consentProof as AiConsentProof | undefined;
-    const consentValid = await verifyConsent(consentProof, body.projectId, auth.userId, req);
+    const consentValid = await verifyConsent(consentProof, body.projectId, auth.userId);
     if (!consentValid) {
       return Response.json(
         { ok: false, error: "请先确认脱敏并允许发送到外部 AI 服务" },
@@ -83,16 +83,34 @@ export async function POST(
     // Optional: route to the backend LangGraph runtime (durable run + artifact).
     if ((process.env.AGENT_RUNTIME ?? "legacy") === "langgraph") {
       const { runLanggraphAgent } = await import("@/lib/server/agent-runtime");
-      const { systemPrompt: _system, userPrompt: _user, consentProof: _consent, projectId: _project, ...agentInput } = body;
+      const {
+        systemPrompt: _system,
+        userPrompt: _user,
+        consentProof: _consent,
+        projectId: _project,
+        trainingTaskId: _task,
+        programId: _program,
+        mode: _mode,
+        ...agentInput
+      } = body;
       void _system;
       void _user;
       void _consent;
       void _project;
+      void _task;
+      void _program;
+      void _mode;
       return runLanggraphAgent({
         agentId,
         projectId: String(body.projectId ?? ""),
         userPrompt,
+        systemPrompt,
         input: agentInput as Record<string, unknown>,
+        consentId: consentProof?.consentId,
+        trainingTaskId: typeof body.trainingTaskId === "string" ? body.trainingTaskId : undefined,
+        programId: typeof body.programId === "string" ? body.programId : undefined,
+        mode: typeof body.mode === "string" ? body.mode : undefined,
+        idempotencyKey: req.headers.get("idempotency-key") ?? undefined,
       });
     }
 

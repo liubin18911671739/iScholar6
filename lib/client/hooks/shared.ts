@@ -11,7 +11,7 @@
 
 "use client";
 
-import type { RemoteListQuery } from "@/lib/supabase/remote-query";
+import type { RemoteListQuery } from "@/lib/client/types";
 
 /** Convert an unknown thrown value into a display string. */
 export function errorMessage(error: unknown): string {

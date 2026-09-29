@@ -38,12 +38,12 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 | 区域 | 状态 | 说明 |
 | --- | --- | --- |
-| 新后端 `services/backend` | 🟢 可运行切片 | 平台 API：`/v1/healthz` `/v1/readyz` `/v1/me`；科研核心 `/v1/data/*` 共 12 个资源（projects、manuscripts、manuscript-blocks〔reorder / 快照 / rollback〕、manuscript-versions、bib-items〔含 bulk〕、rag-chunks、attachments〔multipart 上传/下载 + 文件系统 blob〕、experiments、submissions、review-rounds、rebuttal-items、tasks）；`/v1/vectors`（embed / search / status，可选嵌入依赖）；`/v1/agent/*`（线程、运行、SSE 事件流、resume / cancel）；`/v1/training/*`（训练营/报名/提交/评审/互评/组织，Stage 1b 后端切片）；`/v1/mcp/*`（内置 + iScholar 领域工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池，Stage 3）；`/v1/plugins/*`（按用户插件安装/提示词包，Stage 6）；HMAC 服务身份（±300s）、6 个 Alembic 迁移、`AgentHarness`、LangGraph + Postgres checkpointer、worker（`SKIP LOCKED` 租约）均已实现；`/v1/agent/*` 运行 7 个智能体图 + Hermes 图（Stage 4） |
+| 新后端 `services/backend` | 🟢 可运行切片 | 平台 API：`/v1/healthz` `/v1/readyz` `/v1/me`；科研核心 `/v1/data/*` 共 12 个资源（projects、manuscripts、manuscript-blocks〔reorder / 快照 / rollback〕、manuscript-versions、bib-items〔含 bulk〕、rag-chunks、attachments〔multipart 上传/下载 + 文件系统 blob〕、experiments、submissions、review-rounds、rebuttal-items、tasks）；`/v1/vectors`（embed / search / status，可选嵌入依赖）；`/v1/agent/*`（线程、运行、SSE 事件流、resume / cancel）；`/v1/training/*`（训练营/报名/提交/评审/互评/组织，Stage 1b 后端切片）；`/v1/mcp/*`（内置 + iScholar 领域工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池，Stage 3）；`/v1/plugins/*`（按用户插件安装/提示词包，Stage 6）；HMAC 服务身份（±300s）、12 个 Alembic 迁移、`AgentHarness`、LangGraph + Postgres checkpointer、worker（`SKIP LOCKED` 租约）均已实现；`/v1/agent/*` 运行 7 个智能体图 + Hermes 图（Stage 4） |
 | 认证与路由守卫 | 🟢 | Auth.js（Credentials + Postgres `users`）；Edge-safe `lib/auth.config.ts` + `middleware.ts` 守卫 `/dashboard|/projects|/settings|/tools|/training`（未登录 307 → `/login`） |
 | Agent 模型能力 | 🔴 未接入 | 图目前只调用 Crossref（`scholar.search`）→ 产出草稿 → `interrupt` 等待审批；DeepSeek `bind_tools` / 流式尚未接入 |
 | Web → 新后端 | 🟡 数据层就位（默认 legacy） | `app/api/agent/[...path]` 与 `app/api/data/[...path]` 签名代理已就位（共享 `lib/server/backend-proxy.ts`，根 allowlist `agent`/`data`/`vectors`）；科研核心前端数据层已迁移到 React Query（`lib/client/data.ts` + `lib/client/hooks/*` + `QueryProvider`），由 `NEXT_PUBLIC_DATA_BACKEND=legacy\|backend` 开关切换（默认 legacy，旧实现保留至 1c）；Agent UI 仍走旧链路 `/api/agents/[agent]` 直连 DeepSeek，`AGENT_RUNTIME` 开关未实现 |
 | 旧栈（Dexie + Supabase） | 🟡 仍在线 | 7 智能体、训练营、插件、审计账本等仍依赖 `lib/local/*`、`lib/supabase/*` |
-| 质量门禁 | 🟢 全绿 | `pnpm exec tsc --noEmit` / `pnpm lint` / `pnpm vitest run`（56 文件 289 用例）/ `pnpm build` / 后端 `ruff check` / `pytest`（84 用例）/ 评估 `pytest`（7，离线报告 6/6）/ `pnpm test:e2e`（51 通过 / 1 跳过）均通过。E2E 需 host 可达 Postgres（`docker compose up -d --wait postgres`） |
+| 质量门禁 | 🟢 全绿 | `pnpm exec tsc --noEmit` / `pnpm lint` / `pnpm vitest run`（54 文件 273 用例）/ `pnpm build` / 后端 `ruff check` + `pytest` / 评估 `pytest`（离线报告）/ `pnpm test:e2e`（51 通过 / 1 跳过）均通过。E2E 需 host 可达 Postgres（`docker compose up -d --wait postgres`） |
 
 ---
 
@@ -170,14 +170,14 @@ pnpm playwright test e2e/<file>  # 单个 E2E
 pnpm exec tsc --noEmit           # 没有 typecheck 脚本；pnpm build 也会做类型检查
 
 # 质量门禁
-pnpm quality-gate                # lint -> vitest -> build -> e2e（e2e 当前红，见 TODO.md）
+pnpm quality-gate                # lint -> vitest -> build -> e2e（本地全绿）
 pnpm quality-gate:full           # 含 Supabase schema/验收（迁移期遗留检查）
 
 # Docker 平台
 pnpm docker:up / docker:down     # 完整 compose 栈
 pnpm agent:dev                   # 后端热重载 overlay
 pnpm agent:test                  # docker compose run --rm backend pytest
-pnpm agent:eval                  # eval profile（Stage 5 骨架）
+pnpm agent:eval                  # eval profile（离线数据集 + 确定性检查 + 阈值报告）
 docker compose config            # 修改 compose 前校验
 
 # 后端（services/backend，Python 3.12，ruff line-length 120）
@@ -195,8 +195,8 @@ app/                              # Next.js App Router
 │   ├── dashboard/  projects/  settings/  tools/  training/
 ├── api/
 │   ├── auth/[...nextauth]/       # Auth.js 路由处理器
-│   ├── agent/[...path]/          # ★ 指向 Python 后端的签名薄代理
-│   └── data/[...path]/           # ★ 科研数据签名代理（allowlist: data）
+│   ├── agent/ data/ vectors/ audit/ realtime/ plugins/  # ★ 指向 Python 后端的签名薄代理
+│   └── mcp/[tool]/               # ★ MCP 适配器（重塑 flat body → 后端契约）
 components/
 ├── module/                       # 模块工作流外壳（顶栏、8 步进度条、卡片、说明书）
 ├── agents/                       # AgentPageTemplate + agent-configs + outputs/
@@ -213,15 +213,15 @@ lib/
 services/
 ├── backend/                      # ★ FastAPI + LangGraph + MCP
 │   ├── app/main.py               #   入口
-│   ├── app/api/v1/               #   /healthz /readyz /me /data /vectors /agent /training
+│   ├── app/api/v1/               #   /healthz /readyz /me /data /vectors /agent /training /mcp /audit /realtime /plugins
 │   ├── app/core/                 #   config / db / security / authz
 │   ├── app/agents/               #   graph / harness / runtime / tools
 │   ├── app/models/               #   domain.py / research.py（SQLAlchemy 领域模型）
 │   ├── app/storage/              #   文件系统 blob（sha-256、25 MiB 上限）
 │   ├── app/vectors/              #   服务端嵌入（可选依赖）+ backfill worker
 │   ├── app/worker.py             #   agent run worker 入口
-│   └── alembic/versions/         #   ★ 唯一的领域 schema 变更来源（6 个迁移）
-└── eval/                         # 评估 harness（Stage 5 骨架）
+│   └── alembic/versions/         #   ★ 唯一的领域 schema 变更来源（12 个迁移）
+└── eval/                         # 评估 harness（离线数据集 + 检查 + 阈值报告）
 db/init/                          # Postgres 初始化：扩展 + auth 表（users/accounts/...）
 docker/  proxy/  docker-compose.yml  docker-compose.dev.yml
 messages/                         # zh-CN.json / en-US.json
@@ -290,11 +290,11 @@ pnpm docker:up
 ```
 
 - `proxy`（Caddy）在 80/443 终止 TLS，并将 SSE 关闭缓冲转发到 `web`
-- `migrate` 服务在 backend/worker 启动前自动迁移（当前 6 个 Alembic 迁移）
+- `migrate` 服务在 backend/worker 启动前自动迁移（当前 12 个 Alembic 迁移）
 - `worker` 消费后台任务（`SKIP LOCKED` 租约）；`eval` 以 `--profile eval` 启用，服务端嵌入以 `--profile vectors` 启用
 - `storage` 卷挂载到 backend/worker 的 `STORAGE_DIR`，承载附件与脚本 blob
 
-> 旧的 Vercel 部署方式已不再是目标架构，相关配置作为遗留保留。
+> 旧的 Vercel 部署配置已移除；目标架构为全 Docker。
 
 ---
 

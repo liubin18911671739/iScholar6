@@ -54,6 +54,13 @@
 | `20260925_0003_research_core` | 科研核心表（`manuscripts`…`tasks`）+ `projects` 客户端字段 + owner 列指向 `users(id)` 的 FK |
 | `20260927_0004_training_org_lms` | 训练/组织/LMS 表（`training_programs`…`training_lms_links`、`organizations`、`organization_members`）+ identity 列指向 `users(id)` 的 FK + seed 默认组织 |
 | `20260927_0005_consent_audit` | `ai_consents_v2` 增 `program_id`/`training_task_id`/`purpose`/`data_categories`/`sensitive_scan`；新增 `audit_ledger`（SHA-256 哈希链） |
+| `20260927_0006_plugins` | 按用户插件安装/提示词包（`plugin_installs`、`prompt_pack_selections`） |
+| `20260928_0007_audit_chain_hash` | `audit_ledger.chain_hash`（哈希链校验列） |
+| `20260928_0008_plugin_mcp_tools` | `plugin_mcp_tools`（声明式插件工具；已被 `0012` 删除） |
+| `20260928_0009_agent_run_training_link` | `agent_runs_v2` 训练关联列（`training_task_id`/`program_id`/`mode`） |
+| `20260929_0010_consent_project_nullable` | `ai_consents_v2.project_id` 允许为空（训练提交按 program 记录同意） |
+| `20260929_0011_agent_idempotency_owner_scoped` | 幂等键改为 `UNIQUE(owner_id, idempotency_key)` |
+| `20260929_0012_drop_plugin_mcp_tools` | 删除未接线的 `plugin_mcp_tools` 表 |
 
 > 新增迁移后同步更新本表与 `doc/architecture.md` 的数据层说明。
 
@@ -84,9 +91,9 @@
 | 表 | 关键列 | 说明 |
 | --- | --- | --- |
 | `projects` | `id`、`owner_id`(idx)、`name`、`description`、`created_at`、`updated_at` | 领域根实体 |
-| `ai_consents_v2` | `id`、`project_id`(FK)、`owner_id`、`external_services`(JSON)、`redaction_confirmed`、`created_at` | 外部服务同意证明 |
+| `ai_consents_v2` | `id`、`project_id`(FK, nullable)、`program_id`(FK, nullable)、`owner_id`、`external_services`(JSON)、`redaction_confirmed`、`purpose`、`created_at` | 外部服务同意证明（`training_submit` 同意按 program，可无 project） |
 | `agent_threads` | `id`、`project_id`(FK)、`owner_id`、`title`、`created_at` | 会话线程 |
-| `agent_runs_v2` | `id`、`thread_id`(FK)、`project_id`(FK)、`owner_id`、`agent`、`goal`、`input`(JSONB)、`resume_input`(JSONB)、`status`、`consent_id`、`cancel_requested`、`idempotency_key`(unique)、`error`、`result`(JSONB)、时间戳 | Agent 运行 |
+| `agent_runs_v2` | `id`、`thread_id`(FK)、`project_id`(FK)、`owner_id`、`agent`、`goal`、`input`(JSONB)、`resume_input`(JSONB)、`status`、`consent_id`、`cancel_requested`、`idempotency_key`；`UNIQUE(owner_id, idempotency_key)`、`error`、`result`(JSONB)、时间戳 | Agent 运行 |
 | `agent_run_events` | `id`、`run_id`(FK)、`sequence`、`type`、`data`(JSONB)、`created_at`；`UNIQUE(run_id, sequence)` | 运行事件（SSE 来源） |
 | `artifacts` | `id`、`run_id`(FK)、`project_id`(FK)、`kind`、`status`、`content`(JSONB)、`idempotency_key`、`reviewed_at`、`created_at`；`UNIQUE(run_id, idempotency_key)` | 幂等产物 |
 | `evidence` | `id`、`run_id`(FK)、`title`、`source_url`、`doi`、`excerpt`、`verified`、`metadata`(JSONB)、`created_at` | 证据 |

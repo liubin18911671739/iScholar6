@@ -7,38 +7,55 @@ import json
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from pydantic import Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.graphs import AGENT_ID_PATTERN
+from app.api.v1.data.common import CamelModel, iso, ok
 from app.api.v1.deps import identity_uuid, owned_project
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.events import next_run_sequence
 from app.core.security import Identity, require_identity
 from app.models import AgentRun, AgentThread, AiConsent, Artifact, RunEvent, RunStatus
 from app.models.domain import now
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
+ARTIFACT_REVIEW_STATUSES = {"approved", "rejected", "applied"}
 
-class ThreadCreate(BaseModel):
+
+class ThreadCreate(CamelModel):
     project_id: uuid.UUID
     title: str | None = Field(default=None, max_length=240)
 
 
-class RunCreate(BaseModel):
+class RunCreate(CamelModel):
     thread_id: uuid.UUID
     goal: str = Field(min_length=3, max_length=20_000)
-    agent: str = Field(default="orchestrator", pattern=r"^(orchestrator|topic|litreview|design|data|write|submit|rebuttal|hermes)$")
+    agent: str = Field(default="topic", pattern=AGENT_ID_PATTERN)
     input: dict[str, Any] = Field(default_factory=dict)
     consent_id: uuid.UUID | None = None
+    # Client-resolved prompt overrides (plugin packs, locale directive, context).
+    system_prompt: str | None = Field(default=None, max_length=30_000)
+    user_prompt: str | None = Field(default=None, max_length=50_000)
+    # Training (coach) linkage.
+    training_task_id: str | None = Field(default=None, max_length=200)
+    program_id: uuid.UUID | None = None
+    mode: str | None = Field(default=None, max_length=16)
 
 
-class ResumeBody(BaseModel):
+class ResumeBody(CamelModel):
     approved: bool | None = None
     input: dict[str, Any] = Field(default_factory=dict)
+
+
+class ArtifactReview(CamelModel):
+    status: str = Field(min_length=1, max_length=16)
+    feedback: str | None = Field(default=None, max_length=20_000)
 
 
 async def owned_run(session: AsyncSession, run_id: uuid.UUID, owner_id: uuid.UUID) -> AgentRun:
@@ -48,14 +65,26 @@ async def owned_run(session: AsyncSession, run_id: uuid.UUID, owner_id: uuid.UUI
     return run
 
 
+def serialize_artifact(artifact: Artifact) -> dict[str, Any]:
+    return {
+        "id": str(artifact.id),
+        "kind": artifact.kind,
+        "status": artifact.status,
+        "content": artifact.content,
+        "reviewedAt": iso(artifact.reviewed_at),
+    }
+
+
 def serialize_run(run: AgentRun, artifacts: list[Artifact] | None = None) -> dict[str, Any]:
     return {
         "id": str(run.id), "threadId": str(run.thread_id), "projectId": str(run.project_id), "agent": run.agent,
         "goal": run.goal, "status": run.status, "result": run.result, "error": run.error,
-        "cancelRequested": run.cancel_requested, "createdAt": run.created_at.isoformat(),
-        "startedAt": run.started_at.isoformat() if run.started_at else None,
-        "completedAt": run.completed_at.isoformat() if run.completed_at else None,
-        "artifacts": [{"id": str(a.id), "kind": a.kind, "status": a.status, "content": a.content} for a in artifacts or []],
+        "cancelRequested": run.cancel_requested, "createdAt": iso(run.created_at),
+        "startedAt": iso(run.started_at), "completedAt": iso(run.completed_at),
+        "trainingTaskId": run.training_task_id,
+        "programId": str(run.program_id) if run.program_id else None,
+        "mode": run.mode,
+        "artifacts": [serialize_artifact(a) for a in artifacts or []],
     }
 
 
@@ -66,7 +95,7 @@ async def create_thread(body: ThreadCreate, identity: Identity = Depends(require
     thread = AgentThread(project_id=body.project_id, owner_id=owner_id, title=body.title)
     session.add(thread)
     await session.commit()
-    return {"ok": True, "data": {"id": str(thread.id), "projectId": str(thread.project_id), "title": thread.title}}
+    return ok({"id": str(thread.id), "projectId": str(thread.project_id), "title": thread.title})
 
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED)
@@ -82,23 +111,74 @@ async def create_run(
     if idempotency_key:
         existing = await session.scalar(select(AgentRun).where(AgentRun.idempotency_key == idempotency_key, AgentRun.owner_id == owner_id))
         if existing:
-            return {"ok": True, "data": serialize_run(existing)}
+            return ok(serialize_run(existing))
     consent = await session.scalar(select(AiConsent).where(AiConsent.id == body.consent_id, AiConsent.project_id == thread.project_id, AiConsent.owner_id == owner_id, AiConsent.redaction_confirmed.is_(True))) if body.consent_id else None
     if get_settings().agent_require_consent and (not consent or not consent.external_services):
         raise HTTPException(status_code=403, detail="EXTERNAL_AI_CONSENT_REQUIRED")
-    run = AgentRun(thread_id=thread.id, project_id=thread.project_id, owner_id=owner_id, goal=body.goal, agent=body.agent, input=body.input, consent_id=body.consent_id, idempotency_key=idempotency_key)
+    if body.mode is not None and body.mode not in {"coach", "production"}:
+        raise HTTPException(status_code=422, detail="INVALID_MODE")
+
+    run_input = dict(body.input)
+    if body.system_prompt:
+        run_input["systemPrompt"] = body.system_prompt
+    if body.user_prompt:
+        run_input["userPrompt"] = body.user_prompt
+    run = AgentRun(
+        thread_id=thread.id,
+        project_id=thread.project_id,
+        owner_id=owner_id,
+        goal=body.goal,
+        agent=body.agent,
+        input=run_input,
+        consent_id=body.consent_id,
+        idempotency_key=idempotency_key,
+        training_task_id=body.training_task_id,
+        program_id=body.program_id,
+        mode=body.mode,
+    )
     session.add(run)
     await session.flush()
     session.add(RunEvent(run_id=run.id, sequence=1, type="run.queued", data={"goal": body.goal, "agent": body.agent}))
     await session.commit()
-    return {"ok": True, "data": serialize_run(run)}
+    return ok(serialize_run(run))
+
+
+@router.get("/runs")
+async def list_runs(
+    project_id: uuid.UUID = Query(alias="projectId"),
+    limit: int = Query(default=50, ge=1, le=200),
+    identity: Identity = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+):
+    """List the caller's runs for a project, newest first, with artifacts."""
+    owner_id = identity_uuid(identity)
+    await owned_project(session, project_id, owner_id)
+    runs = (
+        await session.scalars(
+            select(AgentRun)
+            .where(AgentRun.project_id == project_id, AgentRun.owner_id == owner_id)
+            .order_by(AgentRun.created_at.desc())
+            .limit(limit)
+        )
+    ).all()
+    run_ids = [run.id for run in runs]
+    by_run: dict[uuid.UUID, list[Artifact]] = {}
+    if run_ids:
+        artifacts = (
+            await session.scalars(
+                select(Artifact).where(Artifact.run_id.in_(run_ids)).order_by(Artifact.created_at)
+            )
+        ).all()
+        for artifact in artifacts:
+            by_run.setdefault(artifact.run_id, []).append(artifact)
+    return ok([serialize_run(run, by_run.get(run.id, [])) for run in runs])
 
 
 @router.get("/runs/{run_id}")
 async def get_run(run_id: uuid.UUID, identity: Identity = Depends(require_identity), session: AsyncSession = Depends(get_session)):
     run = await owned_run(session, run_id, identity_uuid(identity))
     artifacts = (await session.scalars(select(Artifact).where(Artifact.run_id == run.id).order_by(Artifact.created_at))).all()
-    return {"ok": True, "data": serialize_run(run, list(artifacts))}
+    return ok(serialize_run(run, list(artifacts)))
 
 
 @router.post("/runs/{run_id}/resume", status_code=status.HTTP_202_ACCEPTED)
@@ -106,12 +186,14 @@ async def resume_run(run_id: uuid.UUID, body: ResumeBody, identity: Identity = D
     run = await owned_run(session, run_id, identity_uuid(identity))
     if run.status not in {RunStatus.WAITING_FOR_INPUT, RunStatus.WAITING_FOR_REVIEW}:
         raise HTTPException(status_code=409, detail="RUN_NOT_WAITING")
+    if run.cancel_requested:
+        raise HTTPException(status_code=409, detail="RUN_CANCELLED")
     run.status = RunStatus.QUEUED
     run.resume_input = {"approved": body.approved, **body.input}
-    sequence = (await session.scalar(select(func.coalesce(func.max(RunEvent.sequence), 0)).where(RunEvent.run_id == run.id))) + 1
+    sequence = await next_run_sequence(session, run.id)
     session.add(RunEvent(run_id=run.id, sequence=sequence, type="run.resumed", data=body.model_dump()))
     await session.commit()
-    return {"ok": True, "data": serialize_run(run)}
+    return ok(serialize_run(run))
 
 
 @router.post("/runs/{run_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
@@ -120,11 +202,43 @@ async def cancel_run(run_id: uuid.UUID, identity: Identity = Depends(require_ide
     if run.status in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
         raise HTTPException(status_code=409, detail="RUN_ALREADY_FINISHED")
     run.cancel_requested = True
-    if run.status == RunStatus.QUEUED:
+    # Queued/waiting runs are cancelled immediately; a running run stops on its
+    # next harness check.
+    if run.status in {RunStatus.QUEUED, RunStatus.WAITING_FOR_INPUT, RunStatus.WAITING_FOR_REVIEW}:
         run.status = RunStatus.CANCELLED
         run.completed_at = now()
     await session.commit()
-    return {"ok": True, "data": serialize_run(run)}
+    return ok(serialize_run(run))
+
+
+@router.post("/artifacts/{artifact_id}/review")
+async def review_artifact(
+    artifact_id: uuid.UUID,
+    body: ArtifactReview,
+    identity: Identity = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+):
+    """Approve/reject/apply a run artifact (owner-scoped)."""
+    owner_id = identity_uuid(identity)
+    artifact = await session.get(Artifact, artifact_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="ARTIFACT_NOT_FOUND")
+    run = await owned_run(session, artifact.run_id, owner_id)
+    if body.status not in ARTIFACT_REVIEW_STATUSES:
+        raise HTTPException(status_code=422, detail="INVALID_ARTIFACT_STATUS")
+    artifact.status = body.status
+    artifact.reviewed_at = now()
+    sequence = await next_run_sequence(session, run.id)
+    session.add(
+        RunEvent(
+            run_id=run.id,
+            sequence=sequence,
+            type=f"artifact.{body.status}",
+            data={"artifactId": str(artifact.id), "feedback": body.feedback},
+        )
+    )
+    await session.commit()
+    return ok(serialize_artifact(artifact))
 
 
 @router.get("/runs/{run_id}/events")

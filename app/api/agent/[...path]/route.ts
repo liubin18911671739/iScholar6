@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function proxy(req: NextRequest, { params }: { params: { path: string[] } }) {
-  return proxyToBackend(req, params.path);
+  return proxyToBackend(req, ["agent", ...params.path]);
 }
 
 export const GET = proxy;

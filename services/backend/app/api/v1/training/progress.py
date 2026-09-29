@@ -12,13 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import ok
 from app.api.v1.training.deps import (
+    can_manage,
     display_names,
     global_role,
     is_enrolled,
     is_program_ta,
     load_program,
 )
-from app.core.authz import is_global_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingEnrollment, TrainingProgramTask, TrainingReview, TrainingSubmission
@@ -111,8 +111,8 @@ async def get_progress(
     """Self progress for learners; class progress for staff and the camp TA."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    await load_program(session, program_id)
-    staff = is_global_staff(role)
+    program = await load_program(session, program_id)
+    staff = await can_manage(session, role, user_id, program)
     ta = await is_program_ta(session, user_id, program_id)
     can_view_class = staff or ta
 

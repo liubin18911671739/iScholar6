@@ -69,15 +69,25 @@ export function OrgMembersPanel({ organizations }: { organizations: OrgOption[] 
     void load();
   }, [load]);
 
-  // Add a member with the chosen role.
+  // Invite/resolve the email, then add the user to the organization.
   async function addMember() {
     if (!orgId || !email.trim()) return;
     setBusy(true);
     try {
+      const invite = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const inviteJson = await invite.json().catch(() => ({}));
+      if (!invite.ok || !inviteJson.userId) {
+        toast.error(String(inviteJson.error ?? t("orgMemberFailed")));
+        return;
+      }
       const res = await fetch(`/api/training/organizations/${orgId}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), role }),
+        body: JSON.stringify({ userId: inviteJson.userId, role }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -98,7 +108,7 @@ export function OrgMembersPanel({ organizations }: { organizations: OrgOption[] 
     setBusy(true);
     try {
       const res = await fetch(
-        `/api/training/organizations/${orgId}/members?userId=${encodeURIComponent(userId)}`,
+        `/api/training/organizations/${orgId}/members/${encodeURIComponent(userId)}`,
         { method: "DELETE" }
       );
       if (!res.ok) {
@@ -118,10 +128,16 @@ export function OrgMembersPanel({ organizations }: { organizations: OrgOption[] 
     if (!newOrgName.trim()) return;
     setBusy(true);
     try {
+      const slug = newOrgName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 120) || "org";
       const res = await fetch("/api/training/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newOrgName.trim() }),
+        body: JSON.stringify({ name: newOrgName.trim(), slug }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {

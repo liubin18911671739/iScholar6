@@ -2,49 +2,32 @@
  * Agent Run Client (lib/ai/agents/index.ts)
  *
  * Functionality:
- * - Creates local agent-run records, calls the server AI proxy, and streams the response.
- * - Injects a language directive (zh/en) into system and user prompts before dispatch.
- * - Persists outputs, token usage, cost, and latency locally or to Supabase.
- * - Best-effort parse of structured output and best-effort audit-ledger write.
+ * - Resolves prompts (plugin packs + locale directive) and dispatches a durable
+ *   backend agent run through the signed BFF.
+ * - Polls the run and streams the resulting artifact text back to the caller.
+ * - Writes a best-effort hash-chained audit entry after completion.
  *
  * Notes:
  * - Requires prior AI consent; refuses to run without a recent consent record.
- * - Collaborators: server route /api/agents/[id], pricing, parse-agent-output, audit ledger,
- *   prompt-resolve, and the local Dexie database.
+ * - Backend persistence owns run/artifact state; the client keeps no local copy.
  *
  * @author mrpi
  * @date 2026-09-16
  */
 
-import { localDB } from "@/lib/local/db";
+"use client";
+
+import { nanoid } from "nanoid";
 import { type AgentId } from "./registry";
 import { writeAuditEntry, hashContent } from "@/lib/audit/ledger";
-import { parseAgentOutput } from "@/lib/ai/parse-agent-output";
-import { calculateCostCents, type DeepSeekModel } from "@/lib/ai/pricing";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import { nanoid } from "nanoid";
 import { getRecentAiConsent } from "@/lib/local/hooks/training";
-import type { LocalAiConsent } from "@/lib/local/db";
-import { getCollaborativeAuthHeaders, isCollaborativeMode, syncAgentRun, updateRemoteAgentRun } from "@/lib/supabase/collaborative";
+import type { LocalAiConsent } from "@/lib/types/domain";
 import { resolveSystemPrompt, resolveUserPrompt } from "@/lib/plugins/prompt-resolve";
+import { createRun, createThread, getRun, type AgentRunDetail } from "@/lib/client/agents";
 
-/** Model used for DeepSeek API calls — configurable via env var. */
-const DEEPSEEK_MODEL: DeepSeekModel =
-  (process.env.NEXT_PUBLIC_DEEPSEEK_MODEL as DeepSeekModel | undefined) ??
-  "deepseek-chat";
-
-// Persists the initial running agent-run row locally or to Supabase; sync failures are logged.
-async function persistAgentRunStart(run: Parameters<typeof syncAgentRun>[0]) {
-  if (isCollaborativeMode()) {
-    try {
-      await syncAgentRun(run);
-    } catch (error) {
-      console.error("[agent-client] initial agent run sync failed; continuing model call", error);
-    }
-    return;
-  }
-  await localDB.agentRuns.add(run);
-}
+const POLL_INTERVAL_MS = 700;
+const POLL_TIMEOUT_MS = 120_000;
 
 /** Parameters accepted by {@link runAgentStream}. */
 export interface RunAgentStreamParams {
@@ -55,17 +38,36 @@ export interface RunAgentStreamParams {
   /** Coach mode from training deep link. */
   mode?: "coach" | "production";
   trainingTaskId?: string;
+  programId?: string;
   onChunk: (chunk: string) => void;
   onComplete: (runId: string) => void;
   onError: (error: Error) => void;
 }
 
+/** Extract assistant text + usage from a completed run (artifact or Hermes result). */
+function extractRunText(run: AgentRunDetail): {
+  text: string;
+  usage?: { tokenIn?: number; tokenOut?: number };
+} | null {
+  const artifact = run.artifacts[run.artifacts.length - 1];
+  if (artifact?.content?.text) {
+    return { text: artifact.content.text, usage: artifact.content.usage };
+  }
+  const draft = (run.result as { draft?: { text?: string; usage?: { tokenIn?: number; tokenOut?: number } } } | null)?.draft;
+  if (draft?.text) return { text: draft.text, usage: draft.usage };
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Client-side agent execution:
- * 1. Create agentRun in localDB
- * 2. POST to server proxy (DeepSeek)
- * 3. Stream response, store results in localDB
- * 4. Write audit entry
+ * Client-side agent execution against the durable backend runtime:
+ * 1. Resolve prompts + language directive.
+ * 2. Create a backend thread + run.
+ * 3. Poll the run and stream artifact text to `onChunk`.
+ * 4. Write a hash-chained audit entry (best-effort).
  */
 export async function runAgentStream({
   agentId,
@@ -74,6 +76,7 @@ export async function runAgentStream({
   consent: consentOverride,
   mode,
   trainingTaskId,
+  programId,
   onChunk,
   onComplete,
   onError,
@@ -84,22 +87,6 @@ export async function runAgentStream({
     onError(new Error("请先确认脱敏并允许发送到外部 AI 服务"));
     return;
   }
-  const runId = nanoid();
-  const startedAt = new Date().toISOString();
-
-  // Create agent run record locally
-  const initialRun = {
-    id: runId,
-    projectId,
-    agent: agentId,
-    status: "running",
-    inputs: input,
-    modelName: DEEPSEEK_MODEL,
-    startedAt,
-    ...(mode ? { mode } : {}),
-    ...(trainingTaskId ? { trainingTaskId } : {}),
-  } as const;
-  await persistAgentRunStart(initialRun);
 
   let systemPrompt: string;
   let userPrompt: string;
@@ -111,7 +98,7 @@ export async function runAgentStream({
     return;
   }
 
-  // Inject language directive based on user preference
+  // Inject language directive based on user preference.
   const { agentLanguage } = useLocaleStore.getState();
   let effectiveSystemPrompt = systemPrompt;
   let effectiveUserPrompt = userPrompt;
@@ -124,143 +111,58 @@ export async function runAgentStream({
   }
 
   try {
-    // POST prompts plus consent proof to the server proxy; auth headers are added in collaborative mode.
-    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(await getCollaborativeAuthHeaders()) },
-      body: JSON.stringify({
-        projectId,
-        systemPrompt: effectiveSystemPrompt,
-        userPrompt: effectiveUserPrompt,
-        ...input,
-        consentProof: {
-          consentId: consent.id,
-          consentedAt: consent.consentedAt,
-          externalServices: consent.externalServices,
-          redactionConfirmed: consent.redactionConfirmed,
-        },
-      }),
+    const thread = await createThread(projectId, `agent:${agentId}`);
+    const created = await createRun(thread.id, {
+      agent: agentId,
+      goal: effectiveUserPrompt.slice(0, 20_000) || `agent:${agentId}`,
+      input,
+      systemPrompt: effectiveSystemPrompt,
+      userPrompt: effectiveUserPrompt,
+      consentId: consent.id,
+      trainingTaskId,
+      programId,
+      mode,
+      idempotencyKey: nanoid(),
     });
+    const runId = created.id;
 
-    if (!res.ok) {
-      const err = await res.text();
-      if (res.status === 403) {
-        throw new Error("请重新确认脱敏并允许发送到外部 AI 服务");
-      }
-      throw new Error(err || `Agent ${agentId} failed: ${res.status}`);
-    }
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const detail = await getRun(runId);
+      const extracted = extractRunText(detail);
+      if (extracted) {
+        onChunk(extracted.text);
+        onComplete(runId);
 
-    const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
-    let fullOutput = "";
-    let tokenIn = 0;
-    let tokenOut = 0;
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        fullOutput += chunk;
-        onChunk(chunk);
-      }
-
-      // Extract usage metadata from the stream (sent as __USAGE__ marker)
-      const usageMatch = fullOutput.match(/__USAGE__(\{[\s\S]*?\})\n?/);
-      if (usageMatch) {
+        // Best-effort audit write; never fail a completed run because of it.
         try {
-          const usage = JSON.parse(usageMatch[1]);
-          tokenIn = usage.prompt_tokens ?? 0;
-          tokenOut = usage.completion_tokens ?? 0;
-          // Strip usage payload from the displayed output
-          fullOutput = fullOutput.replace(/__USAGE__\{[\s\S]*?\}\n?/g, "");
-        } catch {
-          // Ignore malformed usage data
+          const [promptHash, inputHash, outputHash] = await Promise.all([
+            hashContent(effectiveSystemPrompt + effectiveUserPrompt),
+            hashContent(JSON.stringify(input)),
+            hashContent(extracted.text),
+          ]);
+          await writeAuditEntry({
+            projectId,
+            agentRunId: runId,
+            actor: "local",
+            action: `agent.${agentId}`,
+            promptHash,
+            inputHash,
+            outputHash,
+            consentId: consent.id,
+          });
+        } catch (auditError) {
+          console.error("Agent output saved, but audit entry failed:", auditError);
         }
+        return;
       }
-    } else {
-      console.error("[agent-client] response has no readable body", { agentId });
-    }
-
-    if (!fullOutput.trim()) {
-      throw new Error(`Agent ${agentId} returned an empty response`);
-    }
-
-    const endedAt = new Date().toISOString();
-    const latencyMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-    const costCents = (tokenIn > 0 || tokenOut > 0)
-      ? calculateCostCents(DEEPSEEK_MODEL, tokenIn, tokenOut)
-      : undefined;
-
-    // Update agent run with results
-    const completedRun = {
-      status: "needs_review",
-      outputs: { text: fullOutput.trim() },
-      tokenIn: tokenIn || undefined,
-      tokenOut: tokenOut || undefined,
-      costCents,
-      latencyMs,
-      endedAt,
-    } as const;
-    if (isCollaborativeMode()) {
-      try {
-        await updateRemoteAgentRun(runId, completedRun);
-      } catch (syncError) {
-        // Retry as a full upsert in case the initial insert was interrupted.
-        try {
-          await syncAgentRun({ ...initialRun, ...completedRun });
-        } catch (retryError) {
-          console.error("Model response received, but agent run sync failed:", syncError, retryError);
-        }
+      if (detail.status === "failed" || detail.status === "cancelled") {
+        throw new Error(detail.error ?? `RUN_${detail.status.toUpperCase()}`);
       }
-    } else await localDB.agentRuns.update(runId, completedRun);
-
-    // Try to parse structured output and store it
-    try {
-      const structured = parseAgentOutput(agentId, fullOutput);
-      if (structured) {
-        if (isCollaborativeMode()) {
-          try { await updateRemoteAgentRun(runId, { outputs: { text: fullOutput, structured } }); }
-          catch (syncError) { console.error("Structured agent output sync failed:", syncError); }
-        } else await localDB.agentRuns.update(runId, { outputs: { text: fullOutput, structured } });
-      }
-    } catch {
-      // Structured parsing is best-effort; don't fail the run
+      await sleep(POLL_INTERVAL_MS);
     }
-
-    // The AI response is complete at this point. Do not turn a successful
-    // generation into a failed run just because the optional audit write fails.
-    onComplete(runId);
-
-    // Write audit entry as a best-effort follow-up. Hashing is also optional:
-    // a crypto/runtime failure must never turn a completed model run into a
-    // failed run after onComplete has already notified the UI.
-    try {
-      const [promptHash, inputHash, outputHash] = await Promise.all([
-        hashContent(effectiveSystemPrompt + effectiveUserPrompt),
-        hashContent(JSON.stringify(input)),
-        hashContent(fullOutput),
-      ]);
-      await writeAuditEntry({
-        projectId,
-        agentRunId: runId,
-        actor: "local",
-        action: `agent.${agentId}`,
-        promptHash,
-        inputHash,
-        outputHash,
-      });
-    } catch (auditError) {
-      console.error("Agent output saved, but audit entry failed:", auditError);
-    }
+    throw new Error("AGENT_RUNTIME_TIMEOUT");
   } catch (error) {
-    const failedRun = { status: "failed", endedAt: new Date().toISOString() } as const;
-    try {
-      if (isCollaborativeMode()) await updateRemoteAgentRun(runId, failedRun);
-      else await localDB.agentRuns.update(runId, failedRun);
-    } catch (syncError) {
-      console.error("Failed to persist agent failure status:", syncError);
-    }
     const message = error instanceof Error
       ? error.message
       : error && typeof error === "object"
@@ -269,5 +171,3 @@ export async function runAgentStream({
     onError(new Error(message));
   }
 }
-
-

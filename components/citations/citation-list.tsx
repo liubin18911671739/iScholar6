@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookOpen, Trash2, Quote } from "lucide-react";
-import type { LocalBibItem } from "@/lib/local/db";
+import type { LocalBibItem } from "@/lib/types/domain";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
 
 /** Props for `CitationList`: project scope and optional selection handler. */

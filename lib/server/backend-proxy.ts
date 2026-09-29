@@ -14,7 +14,16 @@ import { NextRequest } from "next/server";
 import { backendIdentityHeaders, backendUrl } from "@/lib/server/backend";
 
 /** Backend API roots the web BFF is allowed to reach. */
-export const ALLOWED_BACKEND_ROOTS = new Set(["agent", "data", "vectors", "training", "mcp", "plugins"]);
+export const ALLOWED_BACKEND_ROOTS = new Set([
+  "agent",
+  "audit",
+  "data",
+  "realtime",
+  "vectors",
+  "training",
+  "mcp",
+  "plugins",
+]);
 
 const RESPONSE_PASSTHROUGH_HEADERS = [
   "content-type",
@@ -24,10 +33,27 @@ const RESPONSE_PASSTHROUGH_HEADERS = [
   "x-accel-buffering",
 ];
 
-/** Reject empty segments and `.`/`..` so the proxy cannot escape its allowlist. */
+/**
+ * Reject empty segments and any `.`/`..` or embedded separator. Next decodes
+ * `%2F` inside a catch-all segment, so checking `/` and `\` is required to stop
+ * a decoded `..%2F..` segment from escaping the allowlist.
+ */
 function isValidPath(segments: string[]): boolean {
   if (segments.length === 0) return false;
-  return segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..");
+  return segments.every(
+    (segment) =>
+      segment.length > 0 &&
+      segment !== "." &&
+      segment !== ".." &&
+      !segment.includes("..") &&
+      !segment.includes("/") &&
+      !segment.includes("\\")
+  );
+}
+
+/** Encode each segment so URL normalization cannot collapse an injected `..`. */
+function encodeSegments(segments: string[]): string {
+  return segments.map((segment) => encodeURIComponent(segment)).join("/");
 }
 
 /** Sign and forward a request to the backend, returning its streamed response. */
@@ -39,8 +65,13 @@ export async function proxyToBackend(req: NextRequest, segments: string[]): Prom
   const identity = await backendIdentityHeaders();
   if (!identity) return Response.json({ ok: false, error: "UNAUTHENTICATED" }, { status: 401 });
 
-  const url = new URL(backendUrl(`/v1/${segments.join("/")}`));
+  const path = `/v1/${encodeSegments(segments)}`;
+  const url = new URL(backendUrl(path));
   url.search = req.nextUrl?.search ?? "";
+  // Defense in depth: never let URL normalization move the request off the root.
+  if (!url.pathname.startsWith(`/v1/${encodeURIComponent(segments[0])}`)) {
+    return Response.json({ ok: false, error: "INVALID_BACKEND_PATH" }, { status: 400 });
+  }
 
   const headers = new Headers(identity);
   const contentType = req.headers.get("content-type");

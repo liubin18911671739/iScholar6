@@ -17,6 +17,23 @@ import authConfig from "@/lib/auth.config";
 import { findUserByEmail } from "@/lib/auth/users";
 import { verifyPassword } from "@/lib/auth/password";
 
+// Process-local credential throttle: caps online password guessing per email.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function tooManyLoginAttempts(email: string): boolean {
+  const key = email.toLowerCase();
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > LOGIN_MAX_ATTEMPTS;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
@@ -29,9 +46,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = typeof credentials?.email === "string" ? credentials.email.trim() : "";
         const password = typeof credentials?.password === "string" ? credentials.password : "";
         if (!email || !password) return null;
+        if (tooManyLoginAttempts(email)) {
+          console.warn("[auth] login throttled", { email });
+          return null;
+        }
         const user = await findUserByEmail(email);
-        if (!user) return null;
-        if (!(await verifyPassword(password, user.password_hash))) return null;
+        // Uniform small delay on failure to slow credential stuffing.
+        if (!user) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          return null;
+        }
+        if (!(await verifyPassword(password, user.password_hash))) {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          return null;
+        }
         return { id: user.id, email: user.email, name: user.name ?? user.email, role: user.role };
       },
     }),

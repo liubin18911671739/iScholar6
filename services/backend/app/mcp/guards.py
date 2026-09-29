@@ -18,32 +18,52 @@ import httpx
 # Upper bound on accepted external tool response size (2 MiB).
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 
-# Loopback / private / link-local / cloud-metadata hostnames.
-_PRIVATE_HOST_RE = re.compile(
-    r"^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|.*\.local|10\.\d+\.\d+\.\d+|"
-    r"192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+|169\.254\.\d+\.\d+|"
-    r"metadata\.google\.internal)$",
-    re.IGNORECASE,
-)
+_BLOCKED_NAMES = {"localhost", "metadata.google.internal"}
+
+# Non-canonical numeric IPv4 forms (decimal / hex) that `ipaddress` rejects but
+# the OS resolver accepts (e.g. 2130706433, 0x7f000001, 127.1).
+_NUMERIC_HOST_RE = re.compile(r"^(0x[0-9a-f]+|[0-9]+)(\.(0x[0-9a-f]+|[0-9]+)){0,3}$", re.IGNORECASE)
 
 
 class GuardError(ValueError):
     """Raised when a tool URL or response violates a guard."""
 
 
+def _is_blocked_ip(ip: Any) -> bool:
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_unspecified
+        or ip.is_multicast
+    )
+
+
 def is_blocked_host(hostname: str) -> bool:
-    """True when the hostname is loopback, private, link-local, or metadata."""
+    """True when a host is loopback/private/link-local/metadata, a literal private IP, or a non-canonical numeric form.
+
+    DNS is intentionally not resolved here (keeps the check deterministic and
+    offline-safe); the request is https-only, redirects are disabled, and the
+    response is size-capped.
+    """
     host = hostname.lower().rstrip(".")
-    if _PRIVATE_HOST_RE.match(host):
+    if not host:
         return True
-    if host.startswith(("fc", "fd", "fe80")):
+    if host in _BLOCKED_NAMES or host.endswith(".local"):
         return True
-    # Reject literal private/reserved IPs (IPv4 + IPv6) even if not in the regex.
+
+    # Literal IP (canonical) — validate directly.
     try:
-        ip = ipaddress.ip_address(host.strip("[]"))
+        return _is_blocked_ip(ipaddress.ip_address(host.strip("[]")))
     except ValueError:
-        return False
-    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified
+        pass
+
+    # Non-canonical numeric forms that sockets would still interpret as an IP
+    # (e.g. 2130706433, 0x7f000001, 127.1).
+    if _NUMERIC_HOST_RE.match(host):
+        return True
+    return False
 
 
 def assert_safe_https_url(url_string: str) -> str:

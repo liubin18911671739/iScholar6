@@ -1,4 +1,4 @@
-"""Per-user plugin installs and prompt-pack selections (migration 20260927_0006)."""
+"""Per-user plugin installs, prompt-pack selections, and declarative MCP tools."""
 
 from __future__ import annotations
 

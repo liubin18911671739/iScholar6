@@ -15,7 +15,7 @@
 
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { BUILTIN_AGENT_IDS } from "@/lib/ai/agents/registry";
-import type { TrainingDimension } from "@/lib/local/db";
+import type { TrainingDimension } from "@/lib/types/domain";
 import {
   MVP_TRAINING_TASKS,
   type TrainingTaskDefinition,

@@ -48,7 +48,7 @@ import {
 } from "@/lib/privacy/sensitive-content";
 import { SensitiveRedactionPanel } from "@/components/privacy/sensitive-redaction-panel";
 import { RemoteLoadError, firstRemoteError } from "@/components/collaborative/remote-load-error";
-import type { LocalManuscript, LocalSubmission } from "@/lib/local/db";
+import type { LocalManuscript, LocalSubmission } from "@/lib/types/domain";
 import { writeAuditEntry, hashContent } from "@/lib/audit/ledger";
 import { useSearchParams } from "next/navigation";
 

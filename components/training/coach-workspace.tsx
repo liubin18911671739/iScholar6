@@ -307,13 +307,11 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
               redactionConfirmed: true;
             }
           | undefined;
-        const consentProjectId =
-          projectId || `camp:${remoteEnrollment.program_id}`;
-
         if (status === "submitted") {
           try {
             const consent = await recordAiConsent({
-              projectId: consentProjectId,
+              // Camp consent is program-scoped; omit the project when absent.
+              projectId: projectId || undefined,
               programId: remoteEnrollment.program_id,
               trainingTaskId: taskId,
               purpose: "training_submit",

@@ -35,9 +35,10 @@ import {
 } from "lucide-react";
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { AGENT_META } from "@/lib/ai/agents/registry";
+import { recordAiConsent } from "@/lib/local/hooks";
+import { containsSensitiveContent } from "@/lib/privacy/sensitive-content";
 import { getStage, primaryStageForAgent } from "./stages";
 import { MarkdownText } from "@/components/ui/markdown-text";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ interface ModuleAssistantProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   agentId: AgentId;
+  projectId: string;
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -62,11 +64,9 @@ export function ModuleAssistant({
   open,
   onOpenChange,
   agentId,
+  projectId,
 }: ModuleAssistantProps) {
   const t = useTranslations("moduleAssistant");
-  // Use runtime Supabase configuration instead of the build-time mode flag.
-  // This keeps the browser and server auth paths aligned after env changes.
-  const supabase = createSupabaseBrowserClient();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -133,33 +133,47 @@ export function ModuleAssistant({
     }));
 
     try {
-      if (supabase) {
-        let session = supabase ? (await supabase.auth.getSession()).data.session : null;
-        if (session && session.expires_at && session.expires_at * 1000 <= Date.now() + 30_000) {
-          session = (await supabase!.auth.refreshSession()).data.session;
-        }
-        if (!session) {
-          setStreamingContent("协作模式需要登录 Supabase 账号，正在返回登录页。");
-          setStreaming(false);
-          setTimeout(() => { window.location.assign("/login"); }, 700);
-          return;
-        }
+      // Gate external AI calls behind a sensitive-content check and explicit consent.
+      if (containsSensitiveContent(text)) {
+        window.alert("检测到可能的敏感信息，请脱敏后再调用外部 AI 模型。");
+        setStreaming(false);
+        return;
       }
-      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+      const confirmed = window.confirm("本次对话内容将发送给外部 AI 服务。请确认已完成脱敏，并同意调用。");
+      if (!confirmed) {
+        setStreaming(false);
+        return;
+      }
+      const consent = await recordAiConsent({
+        projectId,
+        purpose: "agent_run",
+        dataCategories: ["research_input"],
+        externalServices: ["DeepSeek"],
+        redactionConfirmed: true,
+      });
       const response = await fetch("/api/hermes/chat", {
         method: "POST",
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ agentId, messages: history }),
+        body: JSON.stringify({
+          agentId,
+          messages: history,
+          projectId,
+          consentProof: {
+            consentId: consent.id,
+            consentedAt: consent.consentedAt,
+            externalServices: consent.externalServices,
+            redactionConfirmed: consent.redactionConfirmed,
+          },
+        }),
       });
 
       if (!response.ok) {
         const err = await response.json();
         const message = response.status === 401 && err.error === "UNAUTHENTICATED"
-          ? "协作登录已失效，请重新登录后再使用模块助手。"
+          ? "登录已失效，请重新登录后再使用模块助手。"
           : `Error: ${err.error ?? "Request failed"}`;
         setStreamingContent(message);
         // Finalize after a short delay so the user can read the error
@@ -218,7 +232,7 @@ export function ModuleAssistant({
         });
       }, 500);
     }
-  }, [input, streaming, messages, agentId, supabase]);
+  }, [input, streaming, messages, agentId, projectId]);
 
   // Submit on Enter while preserving Shift+Enter for newlines.
   const handleKeyDown = (e: React.KeyboardEvent) => {

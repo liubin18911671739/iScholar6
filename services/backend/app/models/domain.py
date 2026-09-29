@@ -55,7 +55,10 @@ class AiConsent(Base):
     __tablename__ = "ai_consents_v2"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # Nullable for program-scoped (training_submit) consents; migration 20260929_0010.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     # Not an ORM ForeignKey: the auth `users` table is web-owned and unmodeled.
     # The FK constraint is added by migration 20260925_0003.
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
@@ -91,6 +94,7 @@ class AuditEntry(Base):
     output_hash: Mapped[str | None] = mapped_column(String(128))
     consent_id: Mapped[str | None] = mapped_column(String(200))
     parent_hash: Mapped[str | None] = mapped_column(String(128))
+    chain_hash: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)
 
 
@@ -108,7 +112,11 @@ class AgentThread(Base):
 
 class AgentRun(Base):
     __tablename__ = "agent_runs_v2"
-    __table_args__ = (Index("ix_agent_runs_v2_worker", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_agent_runs_v2_worker", "status", "created_at"),
+        # Idempotency is per owner, not global (migration 20260929_0011).
+        UniqueConstraint("owner_id", "idempotency_key", name="uq_agent_runs_v2_owner_idempotency"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     thread_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_threads.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -123,7 +131,14 @@ class AgentRun(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=RunStatus.QUEUED)
     consent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     cancel_requested: Mapped[bool] = mapped_column(default=False, nullable=False)
-    idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(128))
+    # Training (coach) linkage added by migration 20260928_0009.
+    training_task_id: Mapped[str | None] = mapped_column(String(200))
+    program_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("training_programs.id", ondelete="SET NULL"), index=True
+    )
+    mode: Mapped[str | None] = mapped_column(String(16))
+    submission_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     error: Mapped[str | None] = mapped_column(Text)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, nullable=False)

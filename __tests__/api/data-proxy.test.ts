@@ -5,8 +5,9 @@ vi.mock("@/lib/server/backend", () => ({
   backendUrl: (path: string) => `http://backend:8000${path}`,
 }));
 
-import { GET as agentGET } from "@/app/api/agent/[...path]/route";
 import { DELETE as dataDELETE, GET as dataGET, PATCH as dataPATCH } from "@/app/api/data/[...path]/route";
+import { backendIdentityHeaders } from "@/lib/server/backend";
+import { proxyToBackend } from "@/lib/server/backend-proxy";
 
 const mockFetch = vi.fn();
 const originalFetch = globalThis.fetch;
@@ -62,8 +63,22 @@ describe("data BFF proxy", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("rejects a non-allowlisted agent root", async () => {
-    const response = await agentGET(request("GET"), { params: { path: ["me"] } });
+  it("rejects a non-allowlisted root", async () => {
+    const response = await proxyToBackend(request("GET") as never, ["evil"]);
     expect(response.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a decoded traversal segment", async () => {
+    const response = await proxyToBackend(request("GET") as never, ["data", "..%2F..%2Fmetrics"]);
+    expect(response.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsigned caller", async () => {
+    vi.mocked(backendIdentityHeaders).mockResolvedValueOnce(null);
+    const response = await proxyToBackend(request("GET") as never, ["data", "projects"]);
+    expect(response.status).toBe(401);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

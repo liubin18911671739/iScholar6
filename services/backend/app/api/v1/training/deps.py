@@ -14,7 +14,13 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import resolve_role
-from app.core.authz import can_manage_program, can_read_program, can_review_submission
+from app.core.authz import (
+    OrgRole,
+    Role,
+    can_manage_program,
+    can_read_program,
+    is_global_admin,
+)
 from app.models import OrganizationMember, TrainingEnrollment, TrainingProgram
 
 
@@ -97,8 +103,57 @@ async def require_read(session: AsyncSession, role: str | None, user_id: uuid.UU
 
 
 async def can_review(session: AsyncSession, role: str | None, user_id: uuid.UUID, program_id: uuid.UUID) -> bool:
-    """Staff or the program's TA may review submissions."""
-    return can_review_submission(role, is_program_ta=await is_program_ta(session, user_id, program_id))
+    """Staff (org-scoped) or the program's TA may review submissions."""
+    program = await session.get(TrainingProgram, program_id)
+    if program is None:
+        return False
+    return await can_manage(session, role, user_id, program) or await is_program_ta(session, user_id, program_id)
+
+
+async def can_manage_or_ta(session: AsyncSession, role: str | None, user_id: uuid.UUID, program: TrainingProgram) -> bool:
+    """True when the caller may administer the program or is its TA."""
+    return await can_manage(session, role, user_id, program) or await is_program_ta(session, user_id, program.id)
+
+
+async def require_staff_or_ta(session: AsyncSession, role: str | None, user_id: uuid.UUID, program: TrainingProgram) -> None:
+    """Raise 403 unless the caller can administer the program or is its TA."""
+    if not await can_manage_or_ta(session, role, user_id, program):
+        raise HTTPException(status_code=403, detail="FORBIDDEN")
+
+
+async def readable_program_ids(session: AsyncSession, role: str | None, user_id: uuid.UUID) -> list[uuid.UUID] | str:
+    """Programs the caller may read: ``"all"`` for admins, else owned + org + TA ids.
+
+    Mirrors ``can_manage_program`` scoping so cross-program lists cannot leak
+    other organizations' programs to a non-admin librarian.
+    """
+    if is_global_admin(role):
+        return "all"
+    ids: set[uuid.UUID] = set()
+    owned = await session.scalars(select(TrainingProgram.id).where(TrainingProgram.owner_id == user_id))
+    ids.update(owned.all())
+    org_ids = list(
+        (
+            await session.scalars(
+                select(OrganizationMember.org_id).where(
+                    OrganizationMember.user_id == user_id,
+                    OrganizationMember.role.in_([OrgRole.ORG_ADMIN, OrgRole.LIBRARIAN]),
+                )
+            )
+        ).all()
+    )
+    if org_ids:
+        org_programs = await session.scalars(
+            select(TrainingProgram.id).where(TrainingProgram.organization_id.in_(org_ids))
+        )
+        ids.update(org_programs.all())
+    if role == Role.LIBRARIAN:
+        orgless = await session.scalars(
+            select(TrainingProgram.id).where(TrainingProgram.organization_id.is_(None))
+        )
+        ids.update(orgless.all())
+    ids.update(await ta_program_ids(session, user_id))
+    return list(ids)
 
 
 async def display_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[str, str | None]:
@@ -110,6 +165,19 @@ async def display_names(session: AsyncSession, user_ids: list[uuid.UUID]) -> dic
         {"ids": [str(uid) for uid in user_ids]},
     )
     return {row[0]: row[1] for row in rows}
+
+
+async def user_contacts(
+    session: AsyncSession, user_ids: list[uuid.UUID]
+) -> dict[str, dict[str, str | None]]:
+    """Read name/email/role for users (read-only; for staff-facing lists)."""
+    if not user_ids:
+        return {}
+    rows = await session.execute(
+        text("SELECT id::text, name, email::text, role FROM users WHERE id::text = ANY(:ids)"),
+        {"ids": [str(uid) for uid in user_ids]},
+    )
+    return {row[0]: {"name": row[1], "email": row[2], "role": row[3]} for row in rows}
 
 
 async def ta_program_ids(session: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:

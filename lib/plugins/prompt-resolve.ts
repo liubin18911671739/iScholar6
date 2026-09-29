@@ -28,8 +28,8 @@ import {
   SUBMIT_MATCH_PROMPT,
   REBUTTAL_PROMPT,
 } from "@/lib/ai/prompts";
-import { localDB } from "@/lib/local/db";
 import { findPackOverride, getPluginAgent } from "./registry";
+import { bootstrapPlugins, getCachedPackSelection } from "./install";
 
 // Built-in system prompts keyed by built-in agent id.
 const BUILTIN_PROMPTS: Record<BuiltInAgentId, string> = {
@@ -47,14 +47,16 @@ export function getBuiltinSystemPrompt(agentId: BuiltInAgentId): string {
   return BUILTIN_PROMPTS[agentId];
 }
 
-// Read the persisted pack ref for an agent, swallowing storage errors.
+// Read the persisted pack ref for an agent, loading the cache on first use.
 async function getPackSelection(agentId: string): Promise<string | undefined> {
+  const cached = getCachedPackSelection(agentId);
+  if (cached !== undefined) return cached;
   try {
-    const row = await localDB.promptPackSelections.get(agentId);
-    return row?.packRef;
+    await bootstrapPlugins();
   } catch {
     return undefined;
   }
+  return getCachedPackSelection(agentId);
 }
 
 /**

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, ok
-from app.api.v1.training.deps import can_review, display_names, global_role, ta_program_ids
+from app.api.v1.training.deps import can_review, display_names, global_role, readable_program_ids
 from app.api.v1.training.me import serialize_evidence, serialize_review, serialize_submission
 from app.core.authz import is_global_staff
 from app.core.db import get_session
@@ -58,19 +58,23 @@ async def list_queue(
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     staff = is_global_staff(role)
-    ta_ids = await ta_program_ids(session, user_id)
-    if not staff and not ta_ids:
+    # Non-admins are limited to programs they own, manage in their org, or TA.
+    allowed = await readable_program_ids(session, role, user_id)
+    if allowed != "all" and not allowed:
         raise HTTPException(status_code=403, detail="FORBIDDEN")
 
     conditions = []
     if program_id is not None:
-        if not staff and program_id not in ta_ids:
+        if allowed != "all" and program_id not in allowed:
             raise HTTPException(status_code=403, detail="FORBIDDEN")
         conditions.append(TrainingSubmission.program_id == program_id)
-    elif not staff:
-        conditions.append(TrainingSubmission.program_id.in_(ta_ids))
+    elif allowed != "all":
+        conditions.append(TrainingSubmission.program_id.in_(allowed))
 
-    if review_status == "pending":
+    if escalated_only:
+        # Escalated-only overrides the default "submitted" status filter.
+        conditions.append(TrainingSubmission.status == "escalated")
+    elif review_status == "pending":
         conditions.append(TrainingSubmission.status == "submitted")
     elif review_status != "all":
         conditions.append(TrainingSubmission.status == review_status)
@@ -78,8 +82,6 @@ async def list_queue(
         conditions.append(TrainingSubmission.task_id == task_id)
     if learner_id is not None:
         conditions.append(TrainingSubmission.learner_id == learner_id)
-    if escalated_only:
-        conditions.append(TrainingSubmission.status == "escalated")
     if peer_status:
         conditions.append(TrainingSubmission.peer_status == peer_status)
 
@@ -137,7 +139,9 @@ async def list_queue(
         "data": data,
         "page": page,
         "pageSize": page_size,
-        "total": total or len(data),
+        # The `decision` filter is applied after pagination, so the DB count no
+        # longer matches; report the filtered size in that case.
+        "total": len(data) if decision else (total or len(data)),
         "access": "staff" if staff else "ta",
     }
 

@@ -17,12 +17,34 @@ function errorResponse(message: string, status: number): Response {
   return Response.json({ ok: false, error: message }, { status });
 }
 
+/** Extract assistant text from either an artifact or the raw run result. */
+function extractText(detail: {
+  result?: unknown;
+  artifacts?: Array<{ content?: { text?: string; usage?: { tokenIn?: number; tokenOut?: number } } }>;
+}): { text: string; usage?: { tokenIn?: number; tokenOut?: number } } | null {
+  const artifacts = detail.artifacts ?? [];
+  const artifact = artifacts[artifacts.length - 1];
+  const artifactText = artifact?.content?.text;
+  if (artifactText) return { text: artifactText, usage: artifact?.content?.usage };
+
+  // Hermes returns its reply in `result.draft` and writes no artifact.
+  const draft = (detail.result as { draft?: { text?: string; usage?: { tokenIn?: number; tokenOut?: number } } } | null)?.draft;
+  if (draft?.text) return { text: draft.text, usage: draft.usage };
+  return null;
+}
+
 /** Create a backend thread + run for an agent and stream the artifact text. */
 export async function runLanggraphAgent(params: {
   agentId: string;
   projectId: string;
   userPrompt: string;
   input: Record<string, unknown>;
+  systemPrompt?: string;
+  consentId?: string;
+  trainingTaskId?: string;
+  programId?: string;
+  mode?: string;
+  idempotencyKey?: string;
 }): Promise<Response> {
   const identity = await backendIdentityHeaders();
   if (!identity) return errorResponse("UNAUTHENTICATED", 401);
@@ -37,18 +59,32 @@ export async function runLanggraphAgent(params: {
   if (!threadRes.ok) return errorResponse("THREAD_CREATE_FAILED", threadRes.status);
   const threadId = (await threadRes.json()).data.id as string;
 
+  const runHeaders: Record<string, string> = { ...jsonHeaders };
+  if (params.idempotencyKey) runHeaders["idempotency-key"] = params.idempotencyKey;
+
   const runRes = await fetch(backendUrl("/v1/agent/runs"), {
     method: "POST",
-    headers: jsonHeaders,
+    headers: runHeaders,
     body: JSON.stringify({
       threadId,
-      goal: params.userPrompt.slice(0, 20_000),
+      goal: params.userPrompt.slice(0, 20_000) || `agent:${params.agentId}`,
       agent: params.agentId,
       input: params.input,
+      systemPrompt: params.systemPrompt,
+      consentId: params.consentId,
+      trainingTaskId: params.trainingTaskId,
+      programId: params.programId,
+      mode: params.mode,
     }),
     cache: "no-store",
   });
-  if (!runRes.ok) return errorResponse("RUN_CREATE_FAILED", runRes.status);
+  if (!runRes.ok) {
+    const detail = (await runRes.json().catch(() => null)) as { detail?: string } | null;
+    if (runRes.status === 403) {
+      return errorResponse("EXTERNAL_AI_CONSENT_REQUIRED", 403);
+    }
+    return errorResponse(detail?.detail ?? "RUN_CREATE_FAILED", runRes.status);
+  }
   const runId = (await runRes.json()).data.id as string;
 
   const encoder = new TextEncoder();
@@ -68,24 +104,22 @@ export async function runLanggraphAgent(params: {
           const detail = (await detailRes.json()).data as {
             status: string;
             error?: string;
+            result?: unknown;
             artifacts?: Array<{ content?: { text?: string; usage?: { tokenIn?: number; tokenOut?: number } } }>;
           };
-          const artifacts = detail.artifacts ?? [];
-          const artifact = artifacts[artifacts.length - 1];
-          const text = artifact?.content?.text;
-          if (text) {
-            controller.enqueue(encoder.encode(text));
-            const usage = artifact?.content?.usage;
-            if (usage) {
-              controller.enqueue(
-                encoder.encode(
-                  `__USAGE__${JSON.stringify({
-                    prompt_tokens: usage.tokenIn ?? 0,
-                    completion_tokens: usage.tokenOut ?? 0,
-                  })}\n`
-                )
-              );
-            }
+          const extracted = extractText(detail);
+          if (extracted) {
+            controller.enqueue(encoder.encode(extracted.text));
+            const usage = extracted.usage;
+            controller.enqueue(
+              encoder.encode(
+                `\n\n__USAGE__${JSON.stringify({
+                  prompt_tokens: usage?.tokenIn ?? 0,
+                  completion_tokens: usage?.tokenOut ?? 0,
+                  total_tokens: (usage?.tokenIn ?? 0) + (usage?.tokenOut ?? 0),
+                })}\n\n`
+              )
+            );
             controller.close();
             return;
           }

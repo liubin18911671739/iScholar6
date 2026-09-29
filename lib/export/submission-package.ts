@@ -16,9 +16,8 @@
 "use client";
 
 import JSZip from "jszip";
-import { localDB, type LocalManuscript, type LocalManuscriptBlock } from "@/lib/local/db";
-import { getCollaborativeClient, isCollaborativeMode } from "@/lib/supabase/collaborative";
-import { fromRemoteRecord } from "@/lib/supabase/field-map";
+import type { LocalManuscript, LocalManuscriptBlock } from "@/lib/types/domain";
+import { listBlocks, listManuscripts } from "@/lib/client/data";
 
 /**
  * Generate a formatted HTML document that Word can open as .doc
@@ -155,31 +154,9 @@ export async function downloadSubmissionPackage(params: {
   const zip = new JSZip();
 
   // 1. Manuscript document
-  let blocks: LocalManuscriptBlock[] = [];
-  let manuscript: LocalManuscript | undefined;
-
-  if (isCollaborativeMode()) {
-    const client = getCollaborativeClient();
-    if (!client) throw new Error("COLLABORATIVE_AUTH_REQUIRED");
-    const [blocksResult, manuscriptResult] = await Promise.all([
-      client.from("manuscript_blocks").select("*").eq("manuscript_id", manuscriptId).order("ordinal"),
-      client.from("manuscripts").select("*").eq("id", manuscriptId).maybeSingle(),
-    ]);
-    if (blocksResult.error) throw blocksResult.error;
-    if (manuscriptResult.error) throw manuscriptResult.error;
-    blocks = (blocksResult.data ?? []).map(
-      (row) => fromRemoteRecord(row as Record<string, unknown>) as unknown as LocalManuscriptBlock
-    );
-    manuscript = manuscriptResult.data
-      ? (fromRemoteRecord(manuscriptResult.data as Record<string, unknown>) as unknown as LocalManuscript)
-      : undefined;
-  } else {
-    blocks = await localDB.manuscriptBlocks
-      .where("manuscriptId")
-      .equals(manuscriptId)
-      .sortBy("order");
-    manuscript = await localDB.manuscripts.get(manuscriptId);
-  }
+  const blocks: LocalManuscriptBlock[] = await listBlocks(manuscriptId);
+  const manuscripts = await listManuscripts(params.projectId);
+  const manuscript: LocalManuscript | undefined = manuscripts.find((m) => m.id === manuscriptId);
 
   // Render each block as a titled section, in stored order.
   const manuscriptHTML = blocks

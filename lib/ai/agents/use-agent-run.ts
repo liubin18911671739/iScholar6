@@ -21,11 +21,10 @@ import { useParams, useSearchParams } from "next/navigation";
 import { runAgentStream } from "@/lib/ai/agents";
 import { getAgentMeta, isBuiltInAgent, type AgentId, type BuiltInAgentId } from "@/lib/ai/agents/registry";
 import { parseAgentOutput, type AgentStructuredOutput } from "@/lib/ai/parse-agent-output";
-import { localDB } from "@/lib/local/db";
-import type { LocalAiConsent } from "@/lib/local/db";
+import type { LocalAiConsent } from "@/lib/types/domain";
 import { writeAuditEntry } from "@/lib/audit/ledger";
-import { getLatestApprovedRun } from "@/lib/local/hooks/agent-runs";
-import { isCollaborativeMode, updateRemoteAgentRun } from "@/lib/supabase/collaborative";
+import { upsertAgentRun, updateAgentRunStatus } from "@/lib/local/hooks";
+import { latestApprovedUsage, reviewLatestArtifact } from "@/lib/client/agents";
 import { getPluginAgent } from "@/lib/plugins/registry";
 import type { AgentStatus } from "@/components/agents/agent-workspace";
 
@@ -99,6 +98,7 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
   const trainingContext = useMemo((): {
     trainingTaskId?: string;
     mode?: "coach" | "production";
+    programId?: string;
   } => {
     const trainingTaskId = searchParams?.get("trainingTaskId") ?? undefined;
     const modeParam = searchParams?.get("mode");
@@ -108,7 +108,8 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
         : trainingTaskId
           ? "coach"
           : undefined;
-    return { trainingTaskId, mode };
+    const programId = searchParams?.get("programId") ?? undefined;
+    return { trainingTaskId, mode, programId };
   }, [searchParams]);
   const [status, setStatus] = useState<AgentStatus>("idle");
   const [progress, setProgress] = useState(0);
@@ -126,13 +127,14 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
       setResults("");
       setParsedResults(null);
       setErrorMessage(null);
+      const startedAt = new Date().toISOString();
 
       // Calibrate the progress bar with the actual tokenOut from the
       // previous approved run for this agent+project (if any).
       // Falls back to AGENT_ESTIMATED_TOKENS on first-ever run.
       let estimatedTokens = estimateTokensForAgent(agentId);
       try {
-        const prev = await getLatestApprovedRun(projectId, agentId);
+        const prev = await latestApprovedUsage(projectId, agentId);
         if (prev?.tokenOut && prev.tokenOut > 0) {
           estimatedTokens = prev.tokenOut;
         }
@@ -147,6 +149,7 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
         consent,
         mode: trainingContext.mode,
         trainingTaskId: trainingContext.trainingTaskId,
+        programId: trainingContext.programId,
         onChunk: (chunk) => {
           setResults((prev) => {
             const newResults = prev + chunk;
@@ -165,12 +168,26 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
           setProgress(100);
           setStatus("needs_review");
 
-          // Parse structured output from the accumulated text
+          // Parse structured output and mirror the run locally so output panels
+          // and the audit ledger can resolve it by the backend run id.
           setResults((currentResults) => {
             const parsed = parseAgentOutput(agentId, currentResults);
             if (parsed) {
               setParsedResults(parsed);
             }
+            void upsertAgentRun({
+              id,
+              projectId,
+              agent: agentId,
+              status: "needs_review",
+              inputs: input,
+              outputs: parsed ? { structured: parsed, text: currentResults } : { text: currentResults },
+              startedAt,
+              endedAt: new Date().toISOString(),
+              mode: trainingContext.mode,
+              trainingTaskId: trainingContext.trainingTaskId,
+              consentId: consent?.id,
+            }).catch(() => {});
             return currentResults;
           });
         },
@@ -189,7 +206,7 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
         if (typeof window !== "undefined") window.alert(`${agentName} 运行失败：${normalized.message}`);
       });
     },
-    [agentId, agentName, projectId, trainingContext.mode, trainingContext.trainingTaskId]
+    [agentId, agentName, projectId, trainingContext.mode, trainingContext.trainingTaskId, trainingContext.programId]
   );
 
   // Mark the run approved and persist the status change (best-effort).
@@ -197,12 +214,8 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     setStatus("approved");
     if (runId) {
       try {
-        const patch = {
-          status: "approved",
-          endedAt: new Date().toISOString(),
-        } as const;
-        if (isCollaborativeMode()) await updateRemoteAgentRun(runId, patch);
-        else await localDB.agentRuns.update(runId, patch);
+        await reviewLatestArtifact(runId, "approved");
+        await updateAgentRunStatus(runId, "approved");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,
@@ -220,12 +233,8 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     setStatus("idle");
     if (runId) {
       try {
-        const patch = {
-          status: "rejected",
-          endedAt: new Date().toISOString(),
-        } as const;
-        if (isCollaborativeMode()) await updateRemoteAgentRun(runId, patch);
-        else await localDB.agentRuns.update(runId, patch);
+        await reviewLatestArtifact(runId, "rejected");
+        await updateAgentRunStatus(runId, "rejected");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,
@@ -243,12 +252,8 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     setStatus("applied");
     if (runId) {
       try {
-        const patch = {
-          status: "applied",
-          endedAt: new Date().toISOString(),
-        } as const;
-        if (isCollaborativeMode()) await updateRemoteAgentRun(runId, patch);
-        else await localDB.agentRuns.update(runId, patch);
+        await reviewLatestArtifact(runId, "applied");
+        await updateAgentRunStatus(runId, "applied");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,

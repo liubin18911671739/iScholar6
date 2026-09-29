@@ -261,8 +261,8 @@ return {
 
 ### 5.6 审计与同意
 
-- **同意**：创建运行需要与项目/用户匹配、`redaction_confirmed=true` 的 `ai_consents` 记录，且包含 `crossref`（外部检索）才放行，否则 `403 EXTERNAL_AI_CONSENT_REQUIRED`。
-- **审计**：SHA-256 哈希链，记录 agent 运行、审批、应用等动作（Stage 1 迁入后端 `audit` 表）。
+- **同意**：创建运行需要与项目/用户匹配、`redaction_confirmed=true` 且 `external_services` 非空的 `ai_consents_v2` 记录（`AGENT_REQUIRE_CONSENT=true` 时强制），否则 `403 EXTERNAL_AI_CONSENT_REQUIRED`。Web BFF 在转发前通过 `GET /v1/audit/consents/{id}` **fail-closed** 复核。
+- **审计**：SHA-256 哈希链 `audit_ledger`（生成本身加项目级行锁，避免并发分叉），记录 agent 运行、审批、应用等动作。
 
 ---
 

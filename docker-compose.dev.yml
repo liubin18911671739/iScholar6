@@ -20,3 +20,8 @@ services:
   web:
     # Host-run in dev; disable the containerized build to avoid duplicate servers.
     profiles: ["container-web"]
+
+  proxy:
+    # Keep proxy in the same profile so it is not left depending on a
+    # profile-disabled `web` (which breaks `docker compose config`).
+    profiles: ["container-web"]

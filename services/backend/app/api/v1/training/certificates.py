@@ -12,9 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, iso, ok
-from app.api.v1.training.deps import display_names, global_role, is_enrolled, is_program_ta, load_program
+from app.api.v1.training.deps import display_names, global_role, is_enrolled, load_program, require_staff_or_ta
 from app.api.v1.training.progress import load_curriculum, load_reviews, load_submissions
-from app.core.authz import is_global_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingCertificate, TrainingEnrollment
@@ -51,10 +50,9 @@ async def _task_status(
     submissions = [s for s in await load_submissions(session, program_id) if s.learner_id == learner_id]
     reviews = await load_reviews(session, submissions)
     latest_by_submission: dict[str, str] = {}
-    for review in reviews:
-        current = latest_by_submission.get(str(review.submission_id))
-        if current is None:
-            latest_by_submission[str(review.submission_id)] = review.decision
+    # Sort by created_at so the newest review wins deterministically.
+    for review in sorted(reviews, key=lambda r: r.created_at):
+        latest_by_submission[str(review.submission_id)] = review.decision
     by_task = {s.task_id: s for s in submissions}
     statuses: dict[str, str] = {}
     for task_id in required_task_ids:
@@ -122,8 +120,8 @@ async def list_certificates(
     """List issued certificates for the program (staff or program TA)."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    if not is_global_staff(role) and not await is_program_ta(session, user_id, program_id):
-        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    program = await load_program(session, program_id)
+    await require_staff_or_ta(session, role, user_id, program)
     rows = (
         await session.scalars(
             select(TrainingCertificate)
@@ -144,9 +142,8 @@ async def issue_certificates(
     """Batch-issue certificates for eligible active learners (staff or program TA)."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    if not is_global_staff(role) and not await is_program_ta(session, user_id, program_id):
-        raise HTTPException(status_code=403, detail="FORBIDDEN")
     program = await load_program(session, program_id)
+    await require_staff_or_ta(session, role, user_id, program)
 
     curriculum = await load_curriculum(session, program_id)
     required_task_ids = [cfg.task_id for cfg in curriculum if cfg.required]

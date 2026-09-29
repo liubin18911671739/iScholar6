@@ -19,9 +19,10 @@ from app.core.config import get_settings
 from app.mcp.registry import registry
 
 INSTRUCTIONS = (
-    "iScholar research tools: literature search (OpenAlex/Crossref/Semantic Scholar), "
-    "journal matching, and domain queries (projects, bibliography, manuscript outline). "
-    "External calls require a recorded redaction consent."
+    "iScholar research tools: literature search (OpenAlex/Crossref/Semantic Scholar) "
+    "and journal matching. External calls require a recorded redaction consent. "
+    "Identity-scoped domain tools (ischolar.*) are served only by the authenticated "
+    "REST API, not this shared-token server."
 )
 
 
@@ -77,28 +78,11 @@ def build_mcp_server() -> FastMCP:
             {"abstract": abstract, "keywords": keywords or [], "openAccess": open_access},
         )
 
-    async def list_projects(owner_id: str) -> list[dict[str, Any]]:
-        """List a researcher's projects by owner id."""
-        return await registry.call("ischolar.list_projects", {"ownerId": owner_id})
-
-    async def search_bibliography(project_id: str, query: str, limit: int = 10) -> list[dict[str, Any]]:
-        """Search a project's bibliography by title/abstract."""
-        return await registry.call(
-            "ischolar.search_bibliography", {"projectId": project_id, "query": query, "limit": limit}
-        )
-
-    async def manuscript_outline(project_id: str) -> dict[str, Any]:
-        """Return a project's manuscripts with their section outline."""
-        return await registry.call("ischolar.manuscript_outline", {"projectId": project_id})
-
     server.add_tool(scholar_search, name="scholar.search")
     server.add_tool(openalex_search, name="openalex_search")
     server.add_tool(crossref_lookup, name="crossref_lookup")
     server.add_tool(semantic_scholar, name="semantic_scholar")
     server.add_tool(journal_finder, name="journal_finder")
-    server.add_tool(list_projects, name="ischolar.list_projects")
-    server.add_tool(search_bibliography, name="ischolar.search_bibliography")
-    server.add_tool(manuscript_outline, name="ischolar.manuscript_outline")
     return server
 
 

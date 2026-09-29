@@ -75,12 +75,29 @@ async def invoke_tool(
         consent is None
         or consent.owner_id != owner_id
         or consent.project_id != body.project_id
+        or consent.purpose != "mcp_tool"
         or not consent.redaction_confirmed
+        or not consent.external_services
     ):
         raise HTTPException(status_code=403, detail="CONSENT_REQUIRED")
 
+    params = dict(body.params)
+    if name.startswith("ischolar."):
+        # Identity-scoped tools: inject the signed owner and bind the target
+        # project to the consented project; never trust a client-supplied owner.
+        target = params.get("project_id") or params.get("projectId")
+        if target is not None:
+            try:
+                if uuid.UUID(str(target)) != body.project_id:
+                    raise HTTPException(status_code=403, detail="CONSENT_PROJECT_MISMATCH")
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="INVALID_PROJECT_ID") from exc
+        params.pop("projectId", None)
+        params["project_id"] = str(body.project_id)
+        params["owner_id"] = str(owner_id)
+
     try:
-        result = await registry.call(name, body.params)
+        result = await registry.call(name, params)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="TOOL_NOT_FOUND") from exc
     except ValueError as exc:

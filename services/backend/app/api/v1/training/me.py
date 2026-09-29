@@ -16,12 +16,16 @@ from app.api.v1.training.common import CamelModel, iso, ok
 from app.api.v1.training.deps import is_enrolled, load_program
 from app.api.v1.training.programs import serialize_program
 from app.core.db import get_session
+from app.core.notify import notify_program
 from app.core.security import Identity, require_identity
 from app.models import AiConsent, EvidenceCard, TrainingEnrollment, TrainingProgram, TrainingReview, TrainingSubmission
 
 router = APIRouter(prefix="/me", tags=["training"])
 
 CONSENT_MAX_AGE = timedelta(minutes=30)
+
+# Learners may only draft or submit; completion is derived from a staff review.
+LEARNER_STATUSES = {"draft", "submitted"}
 
 
 class ConsentProof(CamelModel):
@@ -174,6 +178,8 @@ async def submit(
     user_id = identity_uuid(identity)
     if not await is_enrolled(session, user_id, body.program_id):
         raise HTTPException(status_code=403, detail="NOT_ENROLLED")
+    if body.status not in LEARNER_STATUSES:
+        raise HTTPException(status_code=422, detail="INVALID_STATUS")
 
     program = await load_program(session, body.program_id)
     if program.status == "archived":
@@ -221,5 +227,11 @@ async def submit(
         submission.answers = body.answers
         submission.reflection = body.reflection
         submission.status = body.status
+    await notify_program(
+        session,
+        body.program_id,
+        "training.submission",
+        {"id": str(submission.id), "taskId": submission.task_id, "status": submission.status},
+    )
     await session.commit()
     return ok(serialize_submission(submission))

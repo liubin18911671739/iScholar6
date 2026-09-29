@@ -38,7 +38,7 @@ import {
 } from "@/lib/plugins/registry";
 import { listTools } from "@/lib/mcp/gateway";
 import { BUILTIN_AGENT_IDS } from "@/lib/ai/agents/registry";
-import type { LocalPluginInstall } from "@/lib/local/db";
+import type { LocalPluginInstall } from "@/lib/types/domain";
 import { Puzzle, Trash2, Upload } from "lucide-react";
 
 /** Settings panel for installing, toggling, and configuring plugins. */
@@ -54,15 +54,20 @@ export function PluginSettings() {
 
   // Reload installs, active prompt packs, and force a re-render.
   const refresh = useCallback(async () => {
-    await ensurePluginsBootstrapped();
-    const rows = await listInstalledPlugins();
-    setInstalls(rows);
-    const packs: Record<string, string> = {};
-    for (const id of BUILTIN_AGENT_IDS) {
-      packs[id] = await getActivePromptPack(id);
+    try {
+      await ensurePluginsBootstrapped();
+      const rows = await listInstalledPlugins();
+      setInstalls(rows);
+      const packs: Record<string, string> = {};
+      for (const id of BUILTIN_AGENT_IDS) {
+        packs[id] = await getActivePromptPack(id);
+      }
+      setPackByAgent(packs);
+      setTick((n) => n + 1);
+    } catch {
+      setInstalls([]);
+      setPackByAgent({});
     }
-    setPackByAgent(packs);
-    setTick((n) => n + 1);
   }, []);
 
   // Subscribe to registry changes so the list stays in sync after install/enable/disable.

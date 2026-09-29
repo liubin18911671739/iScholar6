@@ -24,7 +24,8 @@ import {
   SUBMIT_MATCH_PROMPT,
   REBUTTAL_PROMPT,
 } from "@/lib/ai/prompts";
-import { checkBodySize, checkRateLimit, jsonError, requireApiUser, timeoutSignal } from "@/lib/server/request-guards";
+import type { AiConsentProof } from "@/lib/ai/consent";
+import { checkBodySize, checkRateLimit, jsonError, requireApiUser, timeoutSignal, verifyConsent } from "@/lib/server/request-guards";
 
 /** Forces the Node.js runtime so streaming fetch is available. */
 export const runtime = "nodejs";
@@ -88,6 +89,16 @@ export async function POST(req: NextRequest) {
       return Response.json(
         { ok: false, error: "messages array is required" },
         { status: 400 }
+      );
+    }
+
+    // Require a valid redaction consent proof before calling the external service.
+    const consentProof = body.consentProof as AiConsentProof | undefined;
+    const consentValid = await verifyConsent(consentProof, body.projectId, auth.userId);
+    if (!consentValid) {
+      return Response.json(
+        { ok: false, error: "请先确认脱敏并允许发送到外部 AI 服务" },
+        { status: 403 }
       );
     }
 

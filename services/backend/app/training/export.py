@@ -27,6 +27,9 @@ def to_csv(rows: list[dict[str, Any]]) -> str:
             text = json.dumps(value, ensure_ascii=False)
         else:
             text = str(value)
+        # Neutralize spreadsheet formula injection in learner-supplied cells.
+        if text[:1] in ("=", "+", "-", "@", "\t", "\r"):
+            text = "'" + text
         if any(ch in text for ch in (",", '"', "\n", "\r")):
             return '"' + text.replace('"', '""') + '"'
         return text

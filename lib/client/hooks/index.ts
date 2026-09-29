@@ -42,3 +42,4 @@ export {
   deleteRebuttalItem,
 } from "./rebuttal-items";
 export { useLocalTasks, createTask, updateTask, deleteTask } from "./tasks";
+export { useAuditEntries } from "./audit";

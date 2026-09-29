@@ -28,6 +28,7 @@ import {
 import { isCollaborativeMode } from "@/lib/supabase/collaborative";
 import { remoteInsert, remoteUpdate, useRemoteRows, type RemoteListQuery } from "@/lib/supabase/remote-query";
 import { getCollaborativeAuthHeaders, getCollaborativeClient } from "@/lib/supabase/collaborative";
+import { createConsent, listConsents } from "@/lib/client/audit";
 import { resolveListQuery } from "./utils";
 
 // ISO timestamp helper scoped to this module.
@@ -230,95 +231,56 @@ export async function createTrainingReview(
   return review.id;
 }
 
-/** Persists an AI consent record locally or posts it to the consents API. */
+/** Persists an AI consent record in Postgres through the audit BFF. */
 export async function recordAiConsent(
-  data: Omit<LocalAiConsent, "id" | "consentedAt">
-) {
-  const consent: LocalAiConsent = {
-    purpose: "agent_run",
-    ...data,
-    id: nanoid(),
-    consentedAt: now(),
-  };
-  if (process.env.NEXT_PUBLIC_COLLABORATIVE_MODE === "true") {
-    const response = await fetch("/api/ai/consents", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(await getCollaborativeAuthHeaders()),
-      },
-      body: JSON.stringify({
-        id: consent.id,
-        projectId: consent.projectId,
-        programId: consent.programId,
-        trainingTaskId: consent.trainingTaskId,
-        purpose: consent.purpose ?? "agent_run",
-        dataCategories: consent.dataCategories,
-        externalServices: consent.externalServices,
-        redactionConfirmed: consent.redactionConfirmed,
-        sensitiveScan: consent.sensitiveScan,
-        consentedAt: consent.consentedAt,
-      }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error ?? "AI_CONSENT_FAILED");
-    const saved: LocalAiConsent = {
-      ...consent,
-      ...(payload.data ?? {}),
-      id: consent.id,
-      projectId: consent.projectId,
-      redactionConfirmed: true,
-      consentedAt: consent.consentedAt,
-      externalServices: consent.externalServices,
-      dataCategories: consent.dataCategories,
-    };
-    latestCollaborativeConsent = saved;
-    return saved;
+  data: {
+    projectId?: string;
+    programId?: string;
+    trainingTaskId?: string;
+    purpose?: LocalAiConsent["purpose"];
+    dataCategories?: string[];
+    externalServices: string[];
+    redactionConfirmed: boolean;
+    sensitiveScan?: LocalAiConsent["sensitiveScan"];
   }
-  await localDB.aiConsents.add(consent);
-  return consent;
+) {
+  const saved = await createConsent({
+    projectId: data.projectId,
+    programId: data.programId,
+    trainingTaskId: data.trainingTaskId,
+    purpose: data.purpose ?? "agent_run",
+    dataCategories: data.dataCategories,
+    externalServices: data.externalServices,
+    redactionConfirmed: data.redactionConfirmed,
+    sensitiveScan: data.sensitiveScan,
+  });
+  latestCollaborativeConsent = saved;
+  return saved;
 }
 
 /** Returns whether a valid AI consent exists within the last 30 minutes. */
 export async function hasRecentAiConsent(projectId: string, trainingTaskId?: string) {
-  if (isCollaborativeMode()) return Boolean(await getRecentAiConsent(projectId, trainingTaskId));
-  const rows = await localDB.aiConsents.where("projectId").equals(projectId).toArray();
-  return rows.some((row) => {
-    if (trainingTaskId && row.trainingTaskId !== trainingTaskId) return false;
-    return Date.now() - new Date(row.consentedAt).getTime() < 30 * 60 * 1000;
-  });
+  return Boolean(await getRecentAiConsent(projectId, trainingTaskId));
 }
 
 /** Finds the most recent AI consent within the 30-minute freshness window. */
-export async function getRecentAiConsent(projectId: string, trainingTaskId?: string) {
-  if (isCollaborativeMode()) {
-    if (latestCollaborativeConsent?.projectId === projectId &&
-      Date.now() - new Date(latestCollaborativeConsent.consentedAt).getTime() < 30 * 60 * 1000) {
-      return latestCollaborativeConsent;
-    }
-    const client = getCollaborativeClient();
-    if (!client) return undefined;
-    const { data } = await client.from("ai_consents").select("*").eq("project_id", projectId).order("consented_at", { ascending: false }).limit(10);
-    const row = (data ?? []).find((item) => (!trainingTaskId || item.training_task_id === trainingTaskId) && Date.now() - new Date(item.consented_at).getTime() < 30 * 60 * 1000);
-    return row
-      ? {
-          id: row.id,
-          projectId: row.project_id,
-          programId: row.program_id ?? undefined,
-          trainingTaskId: row.training_task_id ?? undefined,
-          purpose: row.purpose ?? undefined,
-          dataCategories: row.data_categories ?? [],
-          externalServices: row.external_services,
-          redactionConfirmed: row.redaction_confirmed,
-          sensitiveScan: row.sensitive_scan ?? undefined,
-          consentedAt: row.consented_at,
-        }
-      : undefined;
+export async function getRecentAiConsent(
+  projectId: string,
+  trainingTaskId?: string
+): Promise<LocalAiConsent | undefined> {
+  if (
+    latestCollaborativeConsent?.projectId === projectId &&
+    Date.now() - new Date(latestCollaborativeConsent.consentedAt).getTime() < 30 * 60 * 1000
+  ) {
+    return latestCollaborativeConsent;
   }
-  const rows = (await localDB.aiConsents.where("projectId").equals(projectId).toArray())
-    .sort((a, b) => new Date(b.consentedAt).getTime() - new Date(a.consentedAt).getTime());
-  return rows.find((row) => {
-    if (trainingTaskId && row.trainingTaskId !== trainingTaskId) return false;
-    return Date.now() - new Date(row.consentedAt).getTime() < 30 * 60 * 1000;
-  });
+  try {
+    const rows = await listConsents(projectId);
+    return rows.find((row) => {
+      if (trainingTaskId && row.trainingTaskId !== trainingTaskId) return false;
+      return Date.now() - new Date(row.consentedAt).getTime() < 30 * 60 * 1000;
+    });
+  } catch {
+    return undefined;
+  }
 }

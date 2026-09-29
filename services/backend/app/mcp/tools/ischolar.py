@@ -25,15 +25,22 @@ class SearchBibliographyParams(ToolParams):
     project_id: uuid.UUID = Field(description="Project id")
     query: str = Field(min_length=1, description="Title/abstract search text")
     limit: int = Field(default=10, ge=1, le=50)
+    # Injected by the REST layer from the signed identity; never client-supplied.
+    owner_id: uuid.UUID | None = Field(default=None, description="Caller user id (injected)")
 
 
 class ManuscriptOutlineParams(ToolParams):
     project_id: uuid.UUID = Field(description="Project id")
+    # Injected by the REST layer from the signed identity; never client-supplied.
+    owner_id: uuid.UUID | None = Field(default=None, description="Caller user id (injected)")
 
 
 async def _owned_project(session: Any, project_id: uuid.UUID, owner_id: uuid.UUID | None) -> Project:
+    """Load a project only when it belongs to the caller. Missing owner never bypasses."""
+    if owner_id is None:
+        raise ValueError("PROJECT_NOT_FOUND")
     project = await session.get(Project, project_id)
-    if project is None or (owner_id is not None and project.owner_id != owner_id):
+    if project is None or project.owner_id != owner_id:
         raise ValueError("PROJECT_NOT_FOUND")
     return project
 
@@ -61,7 +68,7 @@ async def list_projects(params: ListProjectsParams) -> list[dict[str, Any]]:
 async def search_bibliography(params: SearchBibliographyParams) -> list[dict[str, Any]]:
     """Search a project's bibliography by title/abstract substring."""
     async with SessionLocal() as session:
-        await _owned_project(session, params.project_id, None)
+        await _owned_project(session, params.project_id, params.owner_id)
         pattern = f"%{params.query.lower()}%"
         rows = (
             await session.scalars(
@@ -89,7 +96,7 @@ async def search_bibliography(params: SearchBibliographyParams) -> list[dict[str
 async def manuscript_outline(params: ManuscriptOutlineParams) -> dict[str, Any]:
     """Return a project's manuscripts with their ordered section outline."""
     async with SessionLocal() as session:
-        await _owned_project(session, params.project_id, None)
+        await _owned_project(session, params.project_id, params.owner_id)
         manuscripts = (
             await session.scalars(
                 select(Manuscript).where(Manuscript.project_id == params.project_id).order_by(Manuscript.updated_at.desc())

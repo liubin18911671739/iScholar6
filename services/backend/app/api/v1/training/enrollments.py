@@ -71,15 +71,28 @@ async def upsert_enrollment(
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
-    """Add or reactivate a member (staff who can manage the camp)."""
+    """Add/reactivate a member (staff), or self-enroll the caller as a learner."""
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     program = await load_program(session, program_id)
-    await require_manage(session, role, user_id, program)
+
+    # Staff may enroll anyone; a learner may only enroll themselves (no role escalation).
+    is_self = body.learner_id == user_id
+    if not is_self:
+        await require_manage(session, role, user_id, program)
 
     if program.status == "archived":
         raise HTTPException(status_code=409, detail="PROGRAM_NOT_ACCEPTING")
-    if program.max_members is not None:
+
+    enrollment = await session.scalar(
+        select(TrainingEnrollment).where(
+            TrainingEnrollment.program_id == program_id,
+            TrainingEnrollment.learner_id == body.learner_id,
+        )
+    )
+    # Capacity is only consumed when a new/reactivated member joins.
+    was_active = enrollment is not None and enrollment.status == "active"
+    if program.max_members is not None and not was_active:
         active = await session.scalar(
             select(func.count())
             .select_from(TrainingEnrollment)
@@ -88,23 +101,18 @@ async def upsert_enrollment(
         if (active or 0) >= program.max_members:
             raise HTTPException(status_code=409, detail="PROGRAM_FULL")
 
-    enrollment = await session.scalar(
-        select(TrainingEnrollment).where(
-            TrainingEnrollment.program_id == program_id,
-            TrainingEnrollment.learner_id == body.learner_id,
-        )
-    )
     if enrollment is None:
         enrollment = TrainingEnrollment(
             program_id=program_id,
             learner_id=body.learner_id,
-            role=body.role or "learner",
-            status=body.status or "active",
+            role="learner" if is_self else (body.role or "learner"),
+            status="active" if is_self else (body.status or "active"),
         )
         session.add(enrollment)
     else:
-        enrollment.status = body.status or "active"
-        enrollment.role = body.role or enrollment.role
+        enrollment.status = "active" if is_self else (body.status or "active")
+        if not is_self:
+            enrollment.role = body.role or enrollment.role
     await session.commit()
     return ok(serialize_enrollment(enrollment))
 

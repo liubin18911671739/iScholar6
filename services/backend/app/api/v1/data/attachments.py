@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import Field
 from sqlalchemy import select
@@ -16,7 +16,7 @@ from app.api.v1.deps import identity_uuid, owned_project
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import Attachment
-from app.storage.blobs import delete_blob, resolve_blob, save_blob
+from app.storage.blobs import MAX_BLOB_BYTES, delete_blob, resolve_blob, save_blob
 
 router = APIRouter(prefix="/attachments", tags=["data"])
 
@@ -69,8 +69,15 @@ async def create_attachment(
     await owned_project(session, project_id, owner_id)
     if bib_item_id is not None:
         await owned_bib_item(session, bib_item_id, owner_id)
-    content = await file.read()
-    relative_path, digest, size = save_blob(content)
+    # Enforce the size cap before buffering the whole upload.
+    if file.size is not None and file.size > MAX_BLOB_BYTES:
+        raise HTTPException(status_code=413, detail="BLOB_TOO_LARGE")
+    content = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        content.extend(chunk)
+        if len(content) > MAX_BLOB_BYTES:
+            raise HTTPException(status_code=413, detail="BLOB_TOO_LARGE")
+    relative_path, digest, size = save_blob(bytes(content))
     attachment = Attachment(
         project_id=project_id,
         bib_item_id=bib_item_id,

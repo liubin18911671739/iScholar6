@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, iso, ok
-from app.api.v1.training.deps import global_role, org_role
-from app.core.authz import can_manage_org, is_global_admin, is_org_staff
+from app.api.v1.training.deps import global_role, org_role, user_contacts
+from app.core.authz import is_global_admin, is_org_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import Organization, OrganizationMember
@@ -96,7 +96,8 @@ async def list_members(
 ):
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    if not is_org_staff(role, await org_role(session, user_id, org_id)):
+    membership_role = await org_role(session, user_id, org_id)
+    if not is_org_staff(role, membership_role):
         raise HTTPException(status_code=403, detail="FORBIDDEN")
 
     rows = (
@@ -106,7 +107,20 @@ async def list_members(
             .order_by(OrganizationMember.created_at)
         )
     ).all()
-    return ok([serialize_member(row) for row in rows])
+    contacts = await user_contacts(session, [row.user_id for row in rows])
+    data = []
+    for row in rows:
+        contact = contacts.get(str(row.user_id), {})
+        data.append(
+            {
+                **serialize_member(row),
+                "displayName": contact.get("name"),
+                "email": contact.get("email"),
+                "profileRole": contact.get("role"),
+            }
+        )
+    can_manage = is_global_admin(role) or membership_role == "org_admin"
+    return {"ok": True, "data": data, "canManage": can_manage}
 
 
 @router.post("/{org_id}/members", status_code=status.HTTP_201_CREATED)
@@ -143,8 +157,8 @@ async def remove_member(
 ):
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
-    if not can_manage_org(role, org_role=await org_role(session, user_id, org_id)):
-        raise HTTPException(status_code=403, detail="FORBIDDEN")
+    # Symmetric with upsert_member: only global admin or org_admin may remove.
+    await _require_org_admin(session, role, user_id, org_id)
 
     member = await session.get(OrganizationMember, (org_id, member_user_id))
     if member is None:

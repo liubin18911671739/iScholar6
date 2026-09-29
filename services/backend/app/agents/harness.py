@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.events import next_run_sequence
 from app.mcp.registry import registry
 from app.models import AgentRun, Artifact, Evidence, RunEvent, RunStatus
 
@@ -35,7 +36,7 @@ class AgentHarness:
     max_tool_calls: int = 8
 
     async def emit(self, event_type: str, data: dict[str, Any]) -> None:
-        sequence = (await self.session.scalar(select(func.coalesce(func.max(RunEvent.sequence), 0)).where(RunEvent.run_id == self.run_id))) + 1
+        sequence = await next_run_sequence(self.session, self.run_id)
         self.session.add(RunEvent(run_id=self.run_id, sequence=sequence, type=event_type, data=data))
         await self.session.flush()
 

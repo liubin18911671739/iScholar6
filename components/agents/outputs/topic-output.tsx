@@ -17,7 +17,8 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useLatestAgentRun, useLocalAuditEntries } from "@/lib/local/hooks";
+import { useLatestAgentRun } from "@/lib/local/hooks";
+import { useAuditEntries } from "@/lib/client/hooks";
 import { type AgentStructuredOutput, type TopicOutput } from "@/lib/ai/parse-agent-output";
 import { EmptyState } from "./shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +36,7 @@ interface TopicOutputPanelProps {
 export function TopicOutputPanel({ projectId }: TopicOutputPanelProps) {
   const t = useTranslations("output.topic");
   const latestRun = useLatestAgentRun(projectId, "topic");
-  const { data: auditEntries } = useLocalAuditEntries(projectId);
+  const { data: auditEntries } = useAuditEntries(projectId);
 
   // Extract data before early return so hooks stay unconditional
   const structured = latestRun?.outputs?.structured as AgentStructuredOutput | undefined;

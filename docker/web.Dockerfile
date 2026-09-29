@@ -4,7 +4,9 @@
 FROM node:22-alpine AS deps
 RUN corepack enable
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml carries `ignoredBuiltDependencies`; without it the image
+# install runs with different build-script behavior than local dev.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # ── builder ─────────────────────────────────────────────────────────────────
@@ -12,6 +14,11 @@ FROM node:22-alpine AS builder
 RUN corepack enable
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# NEXT_PUBLIC_* values are inlined at build time; pass them in from compose.
+ARG NEXT_PUBLIC_DATA_BACKEND=legacy
+ARG NEXT_PUBLIC_COLLABORATIVE_MODE=false
+ENV NEXT_PUBLIC_DATA_BACKEND=$NEXT_PUBLIC_DATA_BACKEND \
+    NEXT_PUBLIC_COLLABORATIVE_MODE=$NEXT_PUBLIC_COLLABORATIVE_MODE
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Defensive only: `next build` succeeds without AUTH_SECRET; Auth.js reads it at runtime.

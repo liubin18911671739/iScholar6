@@ -1,5 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 
+// Unit tests run in the local-only API mode; production requires an Auth.js session.
+process.env.ALLOW_LOCAL_API = "true";
+
 // Mock Web Crypto API (jsdom does not provide crypto.subtle)
 if (typeof crypto !== "undefined" && !crypto.subtle) {
   // Simple SHA-256 mock that returns a deterministic hex string

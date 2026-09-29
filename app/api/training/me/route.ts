@@ -15,6 +15,7 @@
 
 import { NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { verifyProgramConsent } from "@/lib/server/request-guards";
 import { trainingSubmissionSchema, validationError } from "@/lib/server/training-validation";
 import { assertProgramAcceptsSubmissions } from "@/lib/server/training-program-guards";
 import { containsSensitiveContent, joinTextFields } from "@/lib/privacy/sensitive-content";
@@ -149,19 +150,9 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(consentedAt) || ageMs < 0 || ageMs > 30 * 60 * 1000) {
       return Response.json({ ok: false, error: "CONSENT_EXPIRED" }, { status: 403 });
     }
-    const { data: consentRow, error: consentError } = await supabase
-      .from("ai_consents")
-      .select("id, program_id, purpose, redaction_confirmed, user_id")
-      .eq("id", consentProof.consentId)
-      .eq("user_id", user.id)
-      .eq("redaction_confirmed", true)
-      .maybeSingle();
-    if (
-      consentError ||
-      !consentRow ||
-      consentRow.program_id !== programId ||
-      consentRow.purpose !== "training_submit"
-    ) {
+    // Consents live in backend ai_consents_v2; verify program-scoped, fail closed.
+    const consentValid = await verifyProgramConsent(consentProof, programId, user.id);
+    if (!consentValid) {
       return Response.json({ ok: false, error: "CONSENT_INVALID" }, { status: 403 });
     }
   }

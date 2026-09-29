@@ -17,6 +17,8 @@ from app.api.v1.training.deps import global_role, load_program, require_manage, 
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingProgramTask
+from app.training.catalog import BUILTIN_TASKS
+from app.training.progress import ProgramTaskConfig, resolve_program_curriculum
 
 router = APIRouter(prefix="/programs/{program_id}/tasks", tags=["training"])
 
@@ -65,7 +67,48 @@ async def list_program_tasks(
             .order_by(TrainingProgramTask.ordinal)
         )
     ).all()
-    return ok([serialize_program_task(row) for row in rows])
+    return ok(curriculum_envelope(rows))
+
+
+def curriculum_envelope(rows: list[TrainingProgramTask]) -> dict[str, Any]:
+    """Camp curriculum envelope: raw rows + resolved catalog (legacy parity)."""
+    configs = [
+        ProgramTaskConfig(
+            task_id=row.task_id,
+            ordinal=row.ordinal,
+            due_at=row.due_at,
+            required=row.required,
+            requires_review_override=row.requires_review_override,
+        )
+        for row in rows
+    ]
+    curriculum = resolve_program_curriculum(configs)
+    return {
+        "configured": len(rows) > 0,
+        "rows": [serialize_program_task(row) for row in rows],
+        "catalogSize": len(BUILTIN_TASKS),
+        "available": True,
+        "curriculum": [
+            {
+                "taskId": cfg.task_id,
+                "ordinal": cfg.ordinal,
+                "dueAt": iso(cfg.due_at),
+                "required": cfg.required,
+                "requiresReviewOverride": cfg.requires_review_override,
+                "title": definition.title,
+                "description": definition.description,
+                "agent": definition.agent,
+                "dimension": definition.dimension,
+                "steps": list(definition.steps),
+                "requiresReview": (
+                    cfg.requires_review_override
+                    if cfg.requires_review_override is not None
+                    else definition.requires_review
+                ),
+            }
+            for cfg, definition in curriculum
+        ],
+    }
 
 
 @router.put("")

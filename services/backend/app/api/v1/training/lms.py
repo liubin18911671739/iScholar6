@@ -1,11 +1,11 @@
-"""Per-program LMS/LTI link + gradebook (``/v1/training/programs/{id}/lms/*``).
-
-AGS score push is not yet ported (see TODO); link CRUD and gradebook export are.
+"""Per-program LMS/LTI link, gradebook, and AGS score push
+(``/v1/training/programs/{id}/lms/*``).
 """
 
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,10 +20,12 @@ from app.api.v1.training.progress import _review_likes, load_curriculum, load_re
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingEnrollment, TrainingLmsLink
+from app.training.lms_ags import LmsLinkCredentials, push_gradebook_to_ags
 from app.training.progress import SubmissionLike, build_class_progress
 
 link_router = APIRouter(prefix="/programs/{program_id}/lms/link", tags=["training"])
 gradebook_router = APIRouter(prefix="/programs/{program_id}/lms/gradebook", tags=["training"])
+push_router = APIRouter(prefix="/programs/{program_id}/lms/push", tags=["training"])
 
 
 class LmsLinkUpsert(CamelModel):
@@ -144,19 +146,8 @@ async def delete_link(
     return {"ok": True}
 
 
-@gradebook_router.get("")
-async def get_gradebook(
-    program_id: uuid.UUID,
-    format: str = Query(default="json"),
-    identity: Identity = Depends(require_identity),
-    session: AsyncSession = Depends(get_session),
-):
-    """Gradebook rows (overall + per-task scores); TA exports are redacted."""
-    user_id = identity_uuid(identity)
-    role = await global_role(session, user_id)
-    program = await load_program(session, program_id)
-    await require_manage(session, role, user_id, program)
-
+async def _gradebook_learners(session: AsyncSession, program_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Build per-learner gradebook rows (overall + per-task scores)."""
     enrollments = (
         await session.scalars(
             select(TrainingEnrollment).where(TrainingEnrollment.program_id == program_id)
@@ -188,4 +179,75 @@ async def get_gradebook(
                 "taskScores": {t["taskId"]: t.get("score") for t in member["tasks"]},
             }
         )
-    return ok(rows)
+    return rows
+
+
+@gradebook_router.get("")
+async def get_gradebook(
+    program_id: uuid.UUID,
+    format: str = Query(default="json"),
+    identity: Identity = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+):
+    """Gradebook rows (overall + per-task scores); TA exports are redacted."""
+    user_id = identity_uuid(identity)
+    role = await global_role(session, user_id)
+    program = await load_program(session, program_id)
+    await require_manage(session, role, user_id, program)
+    return ok(await _gradebook_learners(session, program_id))
+
+
+class LmsPushRequest(CamelModel):
+    dry_run: bool = False
+    user_id_map: dict[str, str] | None = None
+
+
+@push_router.post("")
+async def push_grades(
+    program_id: uuid.UUID,
+    body: LmsPushRequest,
+    identity: Identity = Depends(require_identity),
+    session: AsyncSession = Depends(get_session),
+):
+    """Push AGS scores to the linked LMS line item, persisting the outcome.
+
+    The response `data.ok`/`data.failed` report the push outcome; a per-user
+    failure list is returned in `data.errors` (mirrors the legacy route).
+    """
+    user_id = identity_uuid(identity)
+    role = await global_role(session, user_id)
+    program = await load_program(session, program_id)
+    await require_manage(session, role, user_id, program)
+
+    link = await session.scalar(select(TrainingLmsLink).where(TrainingLmsLink.program_id == program_id))
+    if link is None or not link.enabled:
+        raise HTTPException(status_code=400, detail="LMS_LINK_DISABLED")
+    if not link.client_id or not link.token_url or not link.ags_lineitem_url:
+        raise HTTPException(status_code=400, detail="LMS_CONFIG_INCOMPLETE")
+
+    credentials = LmsLinkCredentials(
+        platform=link.platform or "generic",
+        client_id=link.client_id,
+        client_secret=link.client_secret,
+        token_url=link.token_url,
+        ags_lineitem_url=link.ags_lineitem_url,
+        auth_method=link.auth_method or "client_secret_post",
+        private_key_pem=link.private_key_pem,
+        issuer=link.issuer,
+    )
+    result = await push_gradebook_to_ags(
+        credentials=credentials,
+        learners=await _gradebook_learners(session, program_id),
+        user_id_map=body.user_id_map,
+        dry_run=body.dry_run,
+    )
+
+    link.last_push_at = datetime.now(UTC)
+    link.last_push_status = ("dry_run_ok" if body.dry_run else "ok") if result["ok"] else "error"
+    link.last_push_error = (
+        None
+        if result["ok"]
+        else "; ".join(f"{e['userId']}:{e['error']}" for e in result["errors"])[:1000]
+    )
+    await session.commit()
+    return ok({**result, "dryRun": body.dry_run})

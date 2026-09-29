@@ -11,7 +11,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import Field
+from pydantic import Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,14 @@ router = APIRouter(prefix="/vectors", tags=["vectors"])
 class EmbedBody(CamelModel):
     texts: list[str] = Field(min_length=1, max_length=256)
 
+    @field_validator("texts")
+    @classmethod
+    def _cap_text_length(cls, value: list[str]) -> list[str]:
+        """Reject unbounded text so a single request cannot exhaust CPU/memory."""
+        if any(len(text) > 8_000 for text in value):
+            raise ValueError("EMBED_TEXT_TOO_LONG")
+        return value
+
 
 class SearchBody(CamelModel):
     project_id: uuid.UUID
@@ -36,12 +44,14 @@ class SearchBody(CamelModel):
 
 
 @router.get("/status")
-async def vectors_status() -> dict[str, Any]:
+async def vectors_status(identity: Identity = Depends(require_identity)) -> dict[str, Any]:
+    del identity
     return ok({"available": embeddings.is_available(), "model": embeddings.EMBEDDING_MODEL})
 
 
 @router.post("/embed")
-async def embed(body: EmbedBody) -> dict[str, Any]:
+async def embed(body: EmbedBody, identity: Identity = Depends(require_identity)) -> dict[str, Any]:
+    del identity
     try:
         vectors = embeddings.embed_texts(body.texts)
     except embeddings.EmbeddingUnavailable as exc:

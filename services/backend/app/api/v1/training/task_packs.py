@@ -19,6 +19,7 @@ from app.core.authz import is_global_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingTaskDefinition, TrainingTaskPack
+from app.training.catalog import BUILTIN_TASKS
 
 router = APIRouter(prefix="/task-packs", tags=["training"])
 
@@ -95,7 +96,18 @@ async def list_task_packs(
     by_pack: dict[str, list[TrainingTaskDefinition]] = {}
     for definition in definitions:
         by_pack.setdefault(str(definition.pack_id), []).append(definition)
-    return ok([serialize_pack(pack, by_pack.get(str(pack.id), [])) for pack in packs])
+    builtin = [
+        {
+            "id": task.id,
+            "title": task.title,
+            "agent": task.agent,
+            "dimension": task.dimension,
+            "requiresReview": task.requires_review,
+            "source": "builtin",
+        }
+        for task in BUILTIN_TASKS
+    ]
+    return ok({"builtin": builtin, "packs": [serialize_pack(pack, by_pack.get(str(pack.id), [])) for pack in packs]})
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

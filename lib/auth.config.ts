@@ -16,7 +16,9 @@ import type { NextAuthConfig } from "next-auth";
 const authConfig = {
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
-  trustHost: true,
+  // Opt-in: behind a reverse proxy set AUTH_TRUST_HOST=true. Defaulting to
+  // false avoids trusting client-supplied X-Forwarded-Host.
+  trustHost: process.env.AUTH_TRUST_HOST === "true",
   providers: [],
   callbacks: {
     /** Middleware gate: only authenticated users reach protected routes. */

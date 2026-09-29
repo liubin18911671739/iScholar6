@@ -59,7 +59,9 @@ async def require_identity(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="STALE_SERVICE_SIGNATURE")
 
     expected = _signature(x_ischolar_user, x_ischolar_timestamp, get_settings().agent_service_token)
-    if not hmac.compare_digest(expected, x_ischolar_signature):
+    # Compare bytes: `hmac.compare_digest` raises TypeError on non-ASCII str input.
+    provided = x_ischolar_signature.encode("utf-8", "ignore")
+    if not hmac.compare_digest(expected.encode("ascii"), provided):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="INVALID_SERVICE_SIGNATURE")
 
     return Identity(user_id=x_ischolar_user)

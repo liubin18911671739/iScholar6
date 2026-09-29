@@ -24,6 +24,8 @@ dependencies = [
     "langchain-mcp-adapters>=0.1",
     "mcp>=1.1",
     "orjson>=3.10",
+    # LTI AGS grade passback (client-assertion JWT; RS256 via cryptography)
+    "pyjwt[crypto]>=2.8",
 ]
 
 [project.optional-dependencies]

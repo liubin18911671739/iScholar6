@@ -17,7 +17,6 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, RefreshCw, Check, ChevronDown, Sparkles } from "lucide-react";
 import { sanitizeTrainingReturnTo } from "@/lib/training/safe-return";
@@ -29,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { localDB } from "@/lib/local/db";
+import { useLocalProjects } from "@/lib/client/hooks";
 import { cn } from "@/lib/utils";
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { getAgentMeta } from "@/lib/ai/agents/registry";
@@ -53,11 +52,8 @@ export function ModuleTopBar({ agentId, projectId, running }: ModuleTopBarProps)
   const stage = getStage(primaryStageForAgent(agentId)) ?? STAGES[0];
   const moduleName = getAgentMeta(agentId)?.name ?? moduleNameForAgent(agentId);
 
-  const projectsRaw = useLiveQuery(
-    () => localDB.projects.orderBy("updatedAt").reverse().toArray(),
-    []
-  );
-  const projects = Array.isArray(projectsRaw) ? projectsRaw : [];
+  const { data: projectsRaw } = useLocalProjects();
+  const projects = projectsRaw ?? [];
   const active = projects.find((p) => p.id === projectId);
   const activeProjects = projects.filter((p) => p.status !== "archived");
 

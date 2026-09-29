@@ -23,7 +23,7 @@ export { useLocalExperiments, createExperiment, updateExperiment, deleteExperime
 export { useLocalSubmissions, createSubmission, updateSubmission, deleteSubmission } from "./submissions";
 export { useLocalReviewRounds, createReviewRound, updateReviewRound, deleteReviewRound } from "./review-rounds";
 export { useLocalRebuttalItems, createRebuttalItem, updateRebuttalItem, deleteRebuttalItem } from "./rebuttal-items";
-export { useLocalAgentRuns, useLocalAllAgentRuns, updateAgentRunStatus, getLatestApprovedRun, getLatestAgentRunInputs, useWorkflowProgress, useLatestAgentRun } from "./agent-runs";
+export { useLocalAgentRuns, useLocalAllAgentRuns, upsertAgentRun, updateAgentRunStatus, getLatestApprovedRun, getLatestAgentRunInputs, useWorkflowProgress, useLatestAgentRun } from "./agent-runs";
 export { useLocalTasks, createTask, updateTask, deleteTask } from "./tasks";
 export { useTrainingPrograms, useTrainingEnrollments, useReviewQueue, useTrainingClassReport, createTrainingProgram, enrollLearner } from "./training-admin";
 export {

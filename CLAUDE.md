@@ -1,6 +1,9 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+> **Stale / legacy-focused.** This file largely documents the original browser-local + opt-in-Supabase
+> stack and lags the mid-rewrite. `AGENTS.md` is the maintained instruction file; trust executable
+> config/code and `TODO.md` over this document. The structurally wrong sections are corrected inline, but
+> prefer `AGENTS.md`.
 
 ## Project Overview
 
@@ -37,7 +40,7 @@ pnpm vitest run                                   # all tests, single run (no wa
 pnpm playwright test e2e/login.spec.ts
 ```
 
-Test locations: `__tests__/` for Vitest (unit + component + API-route tests, currently 46 files / 266 tests), `e2e/` for Playwright (13 files). `e2e/supabase-collaboration.spec.ts` is skipped unless `REAL_SUPABASE_E2E=true` (needs a real Supabase project + service key).
+Test locations: `__tests__/` for Vitest (unit + component + API-route tests, currently 54 files / 273 tests), `e2e/` for Playwright (13 files). `e2e/supabase-collaboration.spec.ts` is skipped unless `REAL_SUPABASE_E2E=true` (needs a real Supabase project + service key).
 
 Vitest config (`vitest.config.ts`): jsdom environment, globals enabled, `@/` path alias resolves to project root. Setup file `vitest.setup.ts` mocks Web Crypto API (`crypto.subtle.digest`, `crypto.randomUUID`) and imports `@testing-library/jest-dom/vitest` for DOM matchers — jsdom doesn't provide these.
 
@@ -47,11 +50,11 @@ Vitest config (`vitest.config.ts`): jsdom environment, globals enabled, `@/` pat
 
 - **Database**: Dexie (IndexedDB wrapper) — schema in `lib/local/db.ts`, instantiated as `localDB` (DB name `ischolar-v6-local`, currently schema v4 with 23 tables): the 14 research tables (projects, manuscripts, manuscriptBlocks, bibItems, attachments, ragChunks, experiments, submissions, reviewRounds, rebuttalItems, agentRuns, manuscriptVersions, auditLedger, tasks) plus 7 training tables (trainingPrograms, trainingTasks, trainingSubmissions, evidenceCards, trainingReviews, aiConsents, enrollments) plus 2 plugin tables (pluginInstalls, promptPackSelections — local-only, not synced to Supabase). Data access is via React hooks organized by entity in `lib/local/hooks/` (17 files — one per entity incl. `training.ts`/`training-admin.ts` + utils + barrel index), re-exported through `lib/local/hooks.ts` for backward-compatible `@/lib/local/hooks` imports. Call these hooks rather than touching Dexie directly from components.
 - **Dexie → Supabase mirroring**: the bottom of `lib/local/db.ts` registers `creating`/`updating`/`deleting` hooks on every table that fire-and-forget `syncLocalMutation()` — in collaborative mode every local mutation is mirrored to Supabase; failures are logged, not thrown. Schema changes therefore affect the remote mapping too (see below).
-- **Vector search**: Transformers.js runs Xenova/all-MiniLM-L6-v2 client-side for 384-dim embeddings. Web Worker at `lib/local/vector.worker.ts` keeps embedding off the main thread. Similarity search via cosine distance in `lib/local/vector.ts` with LRU caching (50 items, 5-min TTL).
-- **Crypto fallback**: `lib/local/crypto-fallback.ts` provides pure-JS SHA-256 and UUID generation for environments where `crypto.subtle` is unavailable (SSR, jsdom).
+- **Vector search**: now server-side. The backend exposes `/v1/vectors` (pgvector + `all-MiniLM-L6-v2`, 384-dim) via the signed BFF; the old client-side Transformers.js helper files (`lib/local/vector*.ts`) were removed.
+- **Crypto helper**: use `lib/utils/crypto.ts` (`sha256` with a pure-JS fallback) — the old `lib/local/crypto-fallback.ts` was removed.
 - **State**: TanStack React Query for async/fetch state; Zustand for client-only state (`lib/stores/` — `index.ts` combines `LocaleSlice` and `SettingsSlice` from `slices/`, persisted to localStorage as `ischolar-locale`).
 - **i18n**: `next-intl` with two locales (`zh-CN` default, `en-US`) — message catalogs in `messages/*.json`, config in `lib/i18n/config.ts`. Locale detection via `next-intl` plugin in `next.config.mjs` → `i18n/request.ts` (cookie/header based, URLs unchanged). **Both locale files must be updated for any new UI text** — missing keys throw `MISSING_MESSAGE`. Use `t.raw("key")` (not `t("key")`) to access array/object values, such as UserManual step arrays.
-- **Auth**: Client-side local-password auth in `lib/local/auth.ts` (per-user random salt, SHA-256, session timeout). Protected routes redirect to `/login` via `app/(app)/layout.tsx`. Only `login/` route exists in the `(auth)` group; there is no register route. Collaborative mode adds Supabase Auth on top (see below) — the two are independent layers.
+- **Auth**: Auth.js (`lib/auth.ts`, Credentials + Postgres `users`; Edge-safe `lib/auth.config.ts` + `middleware.ts`). The old client-side local-password module `lib/local/auth.ts` no longer exists. Protected routes redirect to `/login`.
 
 ### Supabase Collaborative Mode (opt-in)
 
@@ -63,16 +66,16 @@ Off by default; everything below activates only when `NEXT_PUBLIC_COLLABORATIVE_
 - **Roles**: `lib/supabase/roles.ts` — `requireStaff()` reads `profiles.role` and only allows `librarian`/`admin`. Staff-only routes (`/api/training/programs`, `/api/training/reviews`) use it.
 - **Migrations**: `supabase/migrations/*.sql` (training collaboration, staff permissions, submission identity, collaborative core data, training local entities) — define tables + RLS. After changing a migration, run `pnpm lint:supabase-schema` (verifies remote tables via PostgREST) and update `doc/database.md`.
 - **Server guard layer** (`lib/server/request-guards.ts`) — used by all API routes:
-  - `requireApiUser(req)` — Supabase auth via bearer token or cookies; **no-op (returns ok) when collaborative mode is off**
+  - `requireApiUser(req)` — requires a real Auth.js session; the only bypass is the explicit `ALLOW_LOCAL_API=true` env (dev/tests only). It no longer returns a no-op identity.
   - `checkRateLimit(req, scope)` — in-memory, 20 req/min per IP+scope
   - `checkBodySize(req)` — 256KB default cap
-  - `verifyConsent(...)` — validates an `AiConsentProof` (`lib/ai/consent.ts`) and, in collaborative mode, checks it against the `ai_consents` table
-  - `createApiSupabaseClient` / `createServiceSupabaseClient` (service-role — server only, never expose `SUPABASE_SERVICE_ROLE_KEY`), `jsonError`, `timeoutSignal`
+  - `verifyConsent(...)` / `verifyProgramConsent(...)` — validate an `AiConsentProof` and check it against backend `ai_consents_v2` (fail-closed)
+  - `createServiceSupabaseClient` (service-role — server only, never expose `SUPABASE_SERVICE_ROLE_KEY`), `jsonError`, `timeoutSignal`
 - **Body validation**: `lib/server/training-validation.ts` — Zod schemas for training submissions/programs/invites/reviews with a shared `validationError()` formatter.
 
 ### AI Consent Proofs
 
-External AI/MCP calls require a recent consent proof: the client records consent (redaction confirmed + list of external services) locally in `aiConsents` and via `POST /api/ai/consents`, then sends `consentProof` (with `consentId`) in agent/MCP/hermes request bodies. Routes reject with 403 when the proof is invalid. Don't describe the app as "data never leaves the device" — DeepSeek/Crossref/OpenAlex/Semantic Scholar calls do leave.
+External AI/MCP calls require a recent consent proof. Consent is recorded in backend Postgres (`ai_consents_v2`) via `POST /api/audit/consents`; `consentProof` (with `consentId`) travels in agent/MCP/hermes request bodies and is verified fail-closed against `GET /v1/audit/consents/{id}`. The old `POST /api/ai/consents` route and local `aiConsents` writer are gone. Don't describe the app as "data never leaves the device" — DeepSeek/Crossref/OpenAlex/Semantic Scholar calls do leave.
 
 ### Module Workspace Shell (Conditional Layout)
 
@@ -125,7 +128,7 @@ A manifest-based plugin system in `lib/plugins/` supports three extension types,
 - **Prompt packs**: Override system/user prompts for any agent (built-in or plugin). Users select an active pack per agent in Settings.
 - **Declarative MCP tools**: HTTPS tools with JSON Schema params, registered at runtime.
 
-Key files: `lib/plugins/types.ts` (manifest schema), `lib/plugins/schema.ts` (validation), `lib/plugins/install.ts` (Dexie CRUD), `lib/plugins/registry.ts` (runtime registry), `lib/plugins/bootstrap.ts` (client-side init via `ensurePluginsBootstrapped()`), `lib/plugins/flags.ts` (feature flag `NEXT_PUBLIC_PLUGIN_SYSTEM`, default on). Plugin agent IDs use the format `p.<pluginId>.<key>` and cannot shadow the 7 built-in IDs. Sample manifests in `fixtures/plugins/`. Full docs in `doc/plugins.md`.
+Key files: `lib/plugins/types.ts` (manifest schema), `lib/plugins/schema.ts` (validation), `lib/plugins/install.ts` (persists via `/api/plugins` → backend `/v1/plugins`, not Dexie), `lib/plugins/registry.ts` (runtime registry), `lib/plugins/bootstrap.ts` (client-side init via `ensurePluginsBootstrapped()`), `lib/plugins/flags.ts` (feature flag `NEXT_PUBLIC_PLUGIN_SYSTEM`, default on). Plugin agent IDs use the format `p.<pluginId>.<key>` and cannot shadow the 7 built-in IDs. Sample manifests in `fixtures/plugins/`. Full docs in `doc/plugins.md`.
 
 ### Route Structure
 
@@ -142,7 +145,7 @@ Key files: `lib/plugins/types.ts` (manifest schema), `lib/plugins/schema.ts` (va
 - `app/api/hermes/chat/` — general-purpose chat endpoint (separate from the 7 agents)
 - `app/api/mcp/[tool]/` — MCP tool endpoint (60s max duration)
 - `app/api/agent-runs/` — collaborative-mode agent-run sync (POST/PATCH)
-- `app/api/ai/consents/` — AI consent proof recording
+- `app/api/audit/[...path]/` — audit ledger + consent recording (proxied to backend `/v1/audit`)
 - `app/api/training/` — `me/` (learner state), `programs/` + `programs/[programId]/members/` (staff), `reviews/` (staff)
 - `app/modules/*` — legacy redirects to `/projects` (pre-project module routes); don't add features here
 

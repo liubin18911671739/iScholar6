@@ -42,6 +42,15 @@ export function useLocalAllAgentRuns(): RemoteListQuery<LocalAgentRun> {
   return resolveListQuery(remote, local);
 }
 
+/**
+ * Persists a locally mirrored agent run. The backend owns the durable run, but
+ * output panels and the audit ledger read the Dexie mirror, so completed runs
+ * are written here with the backend run id as the row id.
+ */
+export async function upsertAgentRun(run: LocalAgentRun): Promise<void> {
+  await localDB.agentRuns.put(run);
+}
+
 /** Sets a run's final status and stamps endedAt, remote or local. */
 export async function updateAgentRunStatus(
   runId: string,

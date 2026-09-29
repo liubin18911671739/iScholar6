@@ -13,7 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, iso, iso_date, ok
-from app.api.v1.training.deps import global_role, load_program, require_manage, require_read
+from app.api.v1.training.deps import (
+    global_role,
+    load_program,
+    require_manage,
+    require_read,
+    user_contacts,
+)
 from app.core.authz import OrgRole, is_global_admin, is_global_staff
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
@@ -91,7 +97,34 @@ async def list_programs(
         stmt = stmt.where(or_(*conditions))
 
     rows = (await session.scalars(stmt)).all()
-    return ok([serialize_program(row) for row in rows])
+    program_ids = [row.id for row in rows]
+    enrollments_by_program: dict[str, list[dict[str, Any]]] = {}
+    if program_ids:
+        enrollments = (
+            await session.scalars(
+                select(TrainingEnrollment).where(TrainingEnrollment.program_id.in_(program_ids))
+            )
+        ).all()
+        contacts = await user_contacts(session, [e.learner_id for e in enrollments])
+        for enrollment in enrollments:
+            contact = contacts.get(str(enrollment.learner_id), {})
+            enrollments_by_program.setdefault(str(enrollment.program_id), []).append(
+                {
+                    "id": str(enrollment.id),
+                    "learnerId": str(enrollment.learner_id),
+                    "status": enrollment.status,
+                    "role": enrollment.role,
+                    "email": contact.get("email"),
+                    "displayName": contact.get("name"),
+                }
+            )
+    data = [
+        {**serialize_program(row), "enrollments": enrollments_by_program.get(str(row.id), [])}
+        for row in rows
+    ]
+    access = "staff" if is_global_staff(role) else "ta"
+    scope = "global" if is_global_admin(role) else ("org" if is_global_staff(role) else "ta")
+    return {"ok": True, "data": data, "access": access, "scope": scope}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -133,7 +166,8 @@ async def get_program(
     role = await global_role(session, user_id)
     program = await load_program(session, program_id)
     await require_read(session, role, user_id, program)
-    return ok(serialize_program(program))
+    access = "staff" if is_global_staff(role) else "ta"
+    return {"ok": True, "data": serialize_program(program), "access": access}
 
 
 @router.patch("/{program_id}")

@@ -17,6 +17,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { isCollaborativeMode } from "@/lib/supabase/collaborative";
 import { validateAiConsentProof, type AiConsentProof } from "@/lib/ai/consent";
+import { fetchBackendConsent } from "@/lib/server/backend";
 
 // Per-process rate-limit buckets keyed by `scope:address`.
 const buckets = new Map<string, { count: number; resetAt: number }>();
@@ -51,21 +52,6 @@ function getBearerToken(request?: Request) {
   return request?.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
 }
 
-/** Build a Supabase client from a bearer token, else the server session client. */
-export function createApiSupabaseClient(request?: Request) {
-  const bearer = getBearerToken(request);
-  if (bearer) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return null;
-    return createClient(url, key, {
-      auth: { autoRefreshToken: false, persistSession: false },
-      global: { headers: { Authorization: `Bearer ${bearer}` } },
-    });
-  }
-  return createSupabaseServerClient();
-}
-
 /** Build a service-role Supabase client, or `null` when unconfigured. */
 export function createServiceSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -74,23 +60,47 @@ export function createServiceSupabaseClient() {
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
-/** Resolve the authenticated user from a bearer token or the server session. */
+/**
+ * True when the explicit local-only API bypass is enabled. Never set this in
+ * production; the default stack authenticates through Auth.js.
+ */
+function allowLocalApi(): boolean {
+  // Never honor the bypass in a production build, even if the env var leaks in.
+  return process.env.ALLOW_LOCAL_API === "true" && process.env.NODE_ENV !== "production";
+}
+
+/** Resolve the authenticated user from the Auth.js session, a bearer token, or the Supabase session. */
 export async function requireApiUser(request?: Request) {
-  // Browser-local mode has no server session; the UI is gated client-side.
-  if (!isCollaborativeMode()) return { ok: true as const, userId: "local" };
-  const bearer = getBearerToken(request);
-  if (bearer) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return { ok: false as const };
-    const stateless = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { data: { user } } = await stateless.auth.getUser(bearer);
+  // Primary path: the signed-in Auth.js session (cookies on same-origin API calls).
+  // Imported lazily so unit tests can load this module without pulling next-auth.
+  try {
+    const { auth } = await import("@/lib/auth");
+    const session = await auth();
+    if (session?.user?.id) return { ok: true as const, userId: session.user.id };
+  } catch {
+    // No Auth.js request context (e.g. tests or Edge); fall through.
+  }
+
+  // Legacy collaborative mode still authenticates through Supabase sessions/tokens.
+  if (isCollaborativeMode()) {
+    const bearer = getBearerToken(request);
+    if (bearer) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !key) return { ok: false as const };
+      const stateless = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: { user } } = await stateless.auth.getUser(bearer);
+      return user ? { ok: true as const, userId: user.id } : { ok: false as const };
+    }
+    const client = createSupabaseServerClient();
+    if (!client) return { ok: false as const };
+    const { data: { user } } = await client.auth.getUser();
     return user ? { ok: true as const, userId: user.id } : { ok: false as const };
   }
-  const client = createSupabaseServerClient();
-  if (!client) return { ok: false as const };
-  const { data: { user } } = await client.auth.getUser();
-  return user ? { ok: true as const, userId: user.id } : { ok: false as const };
+
+  // Browser-local dev bypass must be opted into explicitly.
+  if (allowLocalApi()) return { ok: true as const, userId: "local" };
+  return { ok: false as const };
 }
 
 /** Structural check that a consent proof has a bounded external-services list. */
@@ -100,39 +110,76 @@ export function validateConsent(value: unknown) {
   return Array.isArray(proof.externalServices) && proof.externalServices.length <= 10 && validateAiConsentProof(proof);
 }
 
-/** Verify a consent proof against the consent row, tolerating verification gaps. */
-export async function verifyConsent(value: unknown, projectId: unknown, userId: string | null, request?: Request) {
+/**
+ * Verify a consent proof against the backend `ai_consents_v2` row. Fails closed:
+ * an invalid shape, missing project, unreachable backend, unowned consent, or a
+ * project/audit mismatch all reject the request.
+ */
+export async function verifyConsent(value: unknown, projectId: unknown, userId: string | null) {
   if (!validateConsent(value)) {
     console.warn("[consent] invalid proof shape");
     return false;
   }
-  if (typeof projectId !== "string" || !userId) {
+  if (typeof projectId !== "string" || !projectId || !userId) {
     console.warn("[consent] missing project or user", { hasProjectId: typeof projectId === "string", hasUserId: Boolean(userId) });
     return false;
   }
-  const client = createServiceSupabaseClient() ?? createApiSupabaseClient(request);
-  if (!client) return true;
-  const proof = value as AiConsentProof;
-  const { data, error } = await client
-    .from("ai_consents")
-    .select("id, external_services")
-    .eq("id", proof.consentId)
-    .eq("project_id", projectId)
-    .eq("user_id", userId)
-    .eq("redaction_confirmed", true)
-    .maybeSingle();
-  const services = Array.isArray(data?.external_services) ? data.external_services : [];
-  const dbValid = !error && services.some((service) => typeof service === "string" && service.toLowerCase() === "deepseek");
-  if (dbValid) return true;
 
-  console.warn("[consent] database verification failed; accepting recent authenticated proof", {
-    consentId: proof.consentId,
-    projectId,
-    userId,
-    hasRow: Boolean(data),
-    error: error?.message ?? null,
-  });
-  return true;
+  // Local-only dev/tests cannot reach the signed backend; the shape check above suffices.
+  if (allowLocalApi()) return true;
+
+  const proof = value as AiConsentProof;
+  const consent = await fetchBackendConsent(proof.consentId);
+  if (!consent) {
+    console.warn("[consent] consent not found or backend unavailable", { consentId: proof.consentId });
+    return false;
+  }
+  const services = Array.isArray(consent.externalServices) ? consent.externalServices : [];
+  const matchesScope = consent.projectId === projectId;
+  const valid =
+    consent.redactionConfirmed &&
+    matchesScope &&
+    services.some((service) => typeof service === "string" && service.toLowerCase() === "deepseek");
+  if (!valid) {
+    console.warn("[consent] consent does not authorize this project/service", {
+      consentId: proof.consentId,
+      projectId,
+      consentProjectId: consent.projectId,
+    });
+  }
+  return valid;
+}
+
+/**
+ * Verify a program-scoped (camp submission) consent against backend
+ * `ai_consents_v2`. Fails closed like {@link verifyConsent}.
+ */
+export async function verifyProgramConsent(value: unknown, programId: unknown, userId: string | null) {
+  if (!value || typeof value !== "object") {
+    console.warn("[consent] invalid training proof shape");
+    return false;
+  }
+  const proof = value as AiConsentProof;
+  if (!proof.consentId || !proof.redactionConfirmed) {
+    console.warn("[consent] incomplete training proof");
+    return false;
+  }
+  if (typeof programId !== "string" || !programId || !userId) {
+    console.warn("[consent] missing program or user");
+    return false;
+  }
+  if (allowLocalApi()) return true;
+
+  const consent = await fetchBackendConsent(proof.consentId);
+  if (!consent) {
+    console.warn("[consent] training consent not found or backend unavailable", { consentId: proof.consentId });
+    return false;
+  }
+  return (
+    consent.redactionConfirmed &&
+    consent.programId === programId &&
+    consent.purpose === "training_submit"
+  );
 }
 
 /** Build a non-cacheable JSON error response. */

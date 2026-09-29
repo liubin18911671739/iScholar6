@@ -533,6 +533,19 @@
       "number": "至少一个数字"
     }
   },
+  "invite": {
+    "title": "接受邀请",
+    "subtitle": "设置密码以激活你的 iScholar 账号。",
+    "password": "密码",
+    "confirm": "确认密码",
+    "submit": "激活账号",
+    "submitting": "正在激活...",
+    "success": "账号已激活，现在可以登录。",
+    "backToLogin": "前往登录",
+    "invalid": "邀请链接无效或已过期。",
+    "weak": "密码至少 8 个字符。",
+    "mismatch": "两次输入的密码不一致。"
+  },
   "landing": {
     "login": "登录",
     "getStarted": "开始使用",

@@ -35,6 +35,10 @@ async def execute_run(session: AsyncSession, run: AgentRun, resume: dict[str, An
             "goal": run.goal,
             "project_id": str(run.project_id),
             "agent": run.agent,
+            "input": run.input or {},
+            "training_task_id": run.training_task_id,
+            "program_id": str(run.program_id) if run.program_id else None,
+            "mode": run.mode,
         }
         result = await graph.ainvoke(value, config=config)
     except RunCancelled:

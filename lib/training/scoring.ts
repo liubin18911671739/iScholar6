@@ -10,7 +10,7 @@
  * @date 2026-09-16
  */
 
-import type { LocalEvidenceCard, LocalTrainingReview, LocalTrainingSubmission, TrainingDimension } from "@/lib/local/db";
+import type { LocalEvidenceCard, LocalTrainingReview, LocalTrainingSubmission, TrainingDimension } from "@/lib/types/domain";
 
 /** The five training dimensions with their Chinese display labels. */
 export const TRAINING_DIMENSIONS: Array<{ id: TrainingDimension; label: string }> = [
