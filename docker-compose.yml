@@ -41,7 +41,7 @@ services:
   migrate:
     build:
       context: ./services/backend
-      target: prod
+      target: vectors
     env_file:
       - .env
     environment:
@@ -55,16 +55,19 @@ services:
   backend:
     build:
       context: ./services/backend
-      target: prod
+      target: vectors
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /data/hf
       ENVIRONMENT: ${ENVIRONMENT:-production}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       STORAGE_DIR: ${STORAGE_DIR:-/data/storage}
     volumes:
       - storage:${STORAGE_DIR:-/data/storage}
+      - hfcache:/data/hf
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -86,16 +89,19 @@ services:
   worker:
     build:
       context: ./services/backend
-      target: prod
+      target: vectors
     env_file:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /data/hf
       ENVIRONMENT: ${ENVIRONMENT:-production}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       STORAGE_DIR: ${STORAGE_DIR:-/data/storage}
     volumes:
       - storage:${STORAGE_DIR:-/data/storage}
+      - hfcache:/data/hf
     command: ["python", "-m", "app.worker"]
     restart: unless-stopped
     security_opt:
@@ -110,11 +116,6 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
-      args:
-        # NEXT_PUBLIC_* values are inlined at build time; they cannot be changed
-        # at runtime, so pass them as build args.
-        NEXT_PUBLIC_DATA_BACKEND: ${NEXT_PUBLIC_DATA_BACKEND:-legacy}
-        NEXT_PUBLIC_COLLABORATIVE_MODE: ${NEXT_PUBLIC_COLLABORATIVE_MODE:-false}
     env_file:
       - .env
     environment:
@@ -177,6 +178,10 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HOME: /data/hf
+    volumes:
+      - hfcache:/data/hf
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -187,3 +192,4 @@ volumes:
   pgdata:
   redisdata:
   storage:
+  hfcache:

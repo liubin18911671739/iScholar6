@@ -28,7 +28,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 # Optional vectors worker (compose profile "vectors"): installs the heavy
 # sentence-transformers/torch extra and backfills embeddings.
 FROM base AS vectors
-RUN uv pip install --system --no-cache ".[vectors]" \
+RUN uv pip install --system --no-cache torch --index-url https://download.pytorch.org/whl/cpu \
+ && uv pip install --system --no-cache --index-url https://pypi.tuna.tsinghua.edu.cn/simple ".[vectors]" \
     && mkdir -p /data/storage && chown -R 10001:10001 /data
 USER 10001:10001
 CMD ["python", "-m", "app.vectors.worker"]

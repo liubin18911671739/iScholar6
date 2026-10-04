@@ -18,8 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
 from app.models.domain import now
-
-EMBEDDING_DIM = 384
+from app.vectors.embeddings import EMBEDDING_DIM
 
 
 class Manuscript(Base):
