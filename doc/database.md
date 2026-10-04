@@ -1,8 +1,7 @@
 # 数据库结构说明
 
-> 目标架构使用**单一 PostgreSQL 16 + pgvector**。领域表由 Python 后端拥有、经 Alembic 迁移；auth 表由 web 容器（Auth.js）拥有。
->
-> ⚠️ 重构进行中。旧的两层存储（Dexie/IndexedDB + Supabase）见文末[附录](#附录旧数据层迁移中)。
+> 平台使用**单一 PostgreSQL 16 + pgvector**。领域表由 Python 后端拥有、经 Alembic 迁移；auth 表由 web 容器（Auth.js）拥有。
+> 旧的两层存储（Dexie/IndexedDB + Supabase）已完全移除（`lib/local/*`、`lib/supabase/*`、`supabase/`）。
 >
 > 相关：[系统架构](./architecture.md) · [部署指南](./deployment.md) · [`IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)
 
@@ -167,7 +166,7 @@ projects ──┬─(N) agent_threads ──(N) agent_runs_v2 ──┬─(N) a
 | `training_peer_reviews` | `id`、`assignment_id`(FK unique)、`decision`、`score`、`evidence_card_ids`(text[]) | 互评结果 |
 | `training_lms_links` | `id`、`program_id`(FK unique)、`platform`、`client_secret`、`ags_lineitem_url`、`last_push_*` | LMS/LTI AGS（密钥仅服务端） |
 
-API：`/v1/training/*` — programs / enrollments / tasks / progress / report / organizations / submissions / me / reviews / peer / certificates（+`verify`、`me/certificate`）/ consents / nudge / task-packs / calendar / analytics/dashboard / export / lms（link、gradebook）。授权由 `app/core/authz.py` 纯策略 + `app/api/v1/training/deps.py` 解析 program/org 访问；聚合逻辑在 `app/training/*`（纯函数）。旧 Supabase RLS 已被 API 层取代。
+API：`/v1/training/*` — programs / enrollments / tasks / progress / report / organizations / submissions（+`/submissions/{id}/evidence`）/ evidence（`PATCH /evidence/{id}`）/ me / reviews / peer / certificates（+`verify`、`me/certificate`）/ consents / nudge / task-packs / calendar / analytics/dashboard / export / lms（link、gradebook）。授权由 `app/core/authz.py` 纯策略 + `app/api/v1/training/deps.py` 解析 program/org 访问；聚合逻辑在 `app/training/*`（纯函数）。旧 Supabase RLS 已被 API 层取代。
 
 ---
 
@@ -187,6 +186,7 @@ API：`/v1/training/*` — programs / enrollments / tasks / progress / report / 
 
 - **同意**：`ai_consents_v2`（迁移 `20260927_0005` 扩展 `program_id`/`training_task_id`/`purpose`/`data_categories`/`sensitive_scan`）。训练提交要求匹配 program、`purpose='training_submit'`、`redaction_confirmed=true` 且 30 分钟内的同意证明，否则 `403 CONSENT_*`。
 - **审计**：`audit_ledger`（迁移 `20260927_0005`）为 SHA-256 哈希链（`entry[N].parent_hash == entry[N-1].output_hash`）；`/v1/training/me`、`/reviews`、`/peer` 已落库，客户端账本随 `lib/local/*` 删除。
+- **PII 门**：`app/privacy/sensitive_content.py` 镜像 web 端正则；`/v1/training/me` 提交与证据卡创建/更新（`POST /submissions/{id}/evidence`、`PATCH /evidence/{id}`）在**服务端**拒绝明显敏感内容（`400 SENSITIVE_CONTENT`），`tests/test_privacy.py` 覆盖。
 
 ---
 
@@ -208,31 +208,4 @@ ruff check && pytest
 docker compose run --rm migrate alembic upgrade head
 ```
 
----
 
-## 附录：旧数据层（迁移中）
-
-重构前，iScholar 使用两层浏览器/远端存储，仍存在于 `lib/local/*` 与 `lib/supabase/*`，按 Stage 逐步删除。
-
-### A1. IndexedDB（Dexie）
-
-- 库名 `ischolar-v6-local`，Dexie schema **v4**。
-- 科研表：`projects`、`manuscripts`、`manuscriptBlocks`、`bibItems`、`attachments`、`ragChunks`、`experiments`、`submissions`、`reviewRounds`、`rebuttalItems`、`agentRuns`、`manuscriptVersions`、`auditLedger`、`tasks`。
-- 训练表：`trainingPrograms`、`enrollments`、`trainingTasks`、`trainingSubmissions`、`evidenceCards`、`trainingReviews`、`aiConsents`。
-- 插件表：`pluginInstalls`、`promptPackSelections`（本地专用，不协作同步）。
-- 变更规则：**必须新增 `this.version(N)`**，不可就地改旧版本；同步更新导出格式与 `__tests__/lib/local/export-compatibility.test.ts`。
-
-### A2. Supabase 协作层
-
-- Supabase Auth + PostgreSQL + RLS；迁移位于 `supabase/migrations/`（`202607160001` … `202607180011`），含训练营生命周期、任务编排、助教 RLS、同意审计、任务包/证书、同伴互评、多租户、LMS。
-- 角色：全局 `profiles.role`（learner/librarian/admin）、院系 `organization_members`、营内 `training_enrollments.role`（learner/ta）。
-- camelCase ↔ snake_case 映射唯一真相源为 `lib/supabase/field-map.ts`（`DEXIE_TO_REMOTE_TABLE` / `REMOTE_COLUMN_MAP`，注意 `order` → `ordinal`）。
-
-**新增需同步远端的字段（旧流程）**：
-
-1. 写 SQL migration（`supabase/migrations/`）
-2. 更新 `REMOTE_COLUMN_MAP` / `DEXIE_TO_REMOTE_TABLE`
-3. 更新本文件与 `doc/database.md`
-4. 补回归测试 `__tests__/lib/supabase/field-map.test.ts`；跑 `pnpm lint:supabase-schema`
-
-> 该流程仅适用于尚未迁移的遗留字段；目标平台不再使用 Supabase。

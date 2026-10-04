@@ -1,6 +1,6 @@
 # LMS / LTI 对接说明
 
-> 目标架构中，训练数据与 LMS 配置存储在 PostgreSQL（后端拥有）；API 经 BFF 代理到 Python 后端。训练数据迁移见 `IMPLEMENTATION_PLAN.md` Stage 1/6。
+> 训练数据与 LMS 配置存储在 PostgreSQL（后端拥有）；API 经 BFF 代理到 Python 后端。
 
 ## 已支持
 
@@ -13,9 +13,7 @@
 
 ## 迁移
 
-目标：`services/backend/alembic/versions/` 中的 LMS 迁移（表 `training_lms_links`：每营一条配置）。`client_secret` / `private_key_pem` 仅服务端使用，API GET 脱敏。
-
-> 迁移期旧实现位于 `supabase/migrations/202607180011_lms_platform_links.sql`，随 Stage 1 一并迁入后端。
+实现：`services/backend/alembic/versions/` 中的 LMS 迁移（表 `training_lms_links`：每营一条配置）。`client_secret` / `private_key_pem` 仅服务端使用，API GET 脱敏。AGS 推送逻辑在 `app/training/lms_ags.py`，成绩册在 `app/training/lms_gradebook.py`。
 
 ## AGS 推送流程
 

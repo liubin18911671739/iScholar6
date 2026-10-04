@@ -2,19 +2,13 @@
 /**
  * Full quality gate orchestrator (local).
  *
- * Runs: lint → vitest → build → e2e (optional flags for remote checks).
+ * Runs: lint → vitest → build → e2e.
  *
  * Usage:
  *   node scripts/quality-gate.mjs
- *   node scripts/quality-gate.mjs --with-supabase
- *   node scripts/quality-gate.mjs --with-real-e2e
  */
 
 import { spawnSync } from "node:child_process";
-
-const args = new Set(process.argv.slice(2));
-const withSupabase = args.has("--with-supabase");
-const withRealE2E = args.has("--with-real-e2e");
 
 function run(label, command, env = {}) {
   console.log(`\n==> ${label}\n$ ${command}`);
@@ -47,16 +41,5 @@ run("build", "pnpm build");
 runOptional("ensure postgres", "docker compose up -d --wait postgres");
 
 run("e2e", "pnpm test:e2e");
-
-if (withSupabase) {
-  run("supabase schema lint", "node scripts/lint-supabase-schema.mjs");
-  run("supabase simulation acceptance", "node scripts/simulate-real-acceptance.mjs");
-}
-
-if (withRealE2E) {
-  run("real supabase browser e2e", "pnpm playwright test e2e/supabase-collaboration.spec.ts", {
-    REAL_SUPABASE_E2E: "true",
-  });
-}
 
 console.log("\nAll requested quality gates passed.");

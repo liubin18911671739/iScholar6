@@ -1,8 +1,8 @@
 # 开发指南
 
-> 面向开发者的环境搭建、服务边界、扩展与调试指南（**目标架构**）。
+> 面向开发者的环境搭建、服务边界、扩展与调试指南（**当前架构**：Next.js BFF + Python 后端）。
 >
-> ⚠️ 重构进行中，旧栈（Dexie/Supabase）仍在部分代码中运行。权威阶段见 [`IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)。
+> 权威阶段见 [`IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)。
 >
 > 相关文档：[系统架构](./architecture.md) · [数据库结构](./database.md) · [部署指南](./deployment.md) · [插件系统](./plugins.md)
 
@@ -90,19 +90,18 @@ DEEPSEEK_MODEL=deepseek-v4-flash
 | `pnpm playwright test e2e/<file>` | 单个 E2E |
 | `pnpm exec tsc --noEmit` | 类型检查（无 typecheck 脚本） |
 | `pnpm quality-gate` | lint → vitest → build → e2e |
-| `pnpm quality-gate:full` | 含 Supabase schema/验收（迁移期遗留） |
 | `pnpm docker:up` / `pnpm docker:down` | 全 compose 栈 |
 | `pnpm agent:dev` | 后端热重载 overlay |
-| `pnpm agent:test` | `docker compose run --rm backend pytest` |
-| `pnpm agent:eval` | eval profile（Stage 5 骨架） |
+| `pnpm agent:test` | `docker compose run --rm backend pytest`（容器内 Postgres 可达） |
+| `pnpm agent:eval` | eval profile（离线数据集 + 检查 + 阈值报告） |
 
 后端（`services/backend`，ruff line-length 120）：
 
 ```bash
-ruff check && pytest
+uv sync --extra dev && uv run ruff check && uv run pytest
 ```
 
-> CI（`.github/workflows/ci.yml`）仍用 `npm ci`；本地请统一用 pnpm。
+> 仓库**没有 CI 工作流**（无 `.github/`），请本地跑 `pnpm quality-gate`；包管理器统一用 pnpm。
 
 ---
 
@@ -110,7 +109,7 @@ ruff check && pytest
 
 三条规定，违反会导致安全或数据问题：
 
-1. **领域数据只经 Python 后端**：web 不得直接读写领域表；一律走 `/v1/*`（经 `app/api/agent/[...path]` 代理）。
+1. **领域数据只经 Python 后端**：web 不得直接读写领域表；一律走 `/v1/*`（经 `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` 代理）。
 2. **auth 表只归 web**：`users` / `accounts` / `verification_token` 由 Auth.js 连接池访问；后端**不得**写这些表。
 3. **身份必须签名**：web 用 `lib/server/backend.ts` 生成 `X-IScholar-*`；后端用 `app/core/security.py` 校验。**绝不**转发裸用户 id，**绝不**把 `AGENT_SERVICE_TOKEN` / `BACKEND_INTERNAL_URL` 暴露给浏览器。
 
@@ -132,26 +131,28 @@ app/                              # Next.js App Router
 ├── (app)/                        # 认证后主应用（模块页全屏，其余侧栏+顶栏）
 ├── api/
 │   ├── auth/[...nextauth]/       # Auth.js handlers
-│   ├── agent/[...path]/          # ★ 签名薄代理 → 后端 /v1
-│   └── …                         # 遗留：agents / mcp / hermes / training
+│   ├── {agent,data,training,audit,realtime,vectors,plugins}/[...path]/  # ★ 签名薄代理 → 后端 /v1
+│   ├── mcp/[tool]/              # MCP 适配器
+│   └── invites/                 # web 自有：训练邀请
 components/
 ├── module/                       # 模块外壳：顶栏、8 步进度条、AI 横幅、卡片、说明书
-├── agents/                       # AgentPageTemplate + agent-configs + configs/ + outputs/
+├── agents/                       # AgentPageTemplate + configs/<agent>/ + outputs/
 ├── editor/ citations/ layouts/ providers/ ui/ training/ plugins/
 lib/
-├── auth.ts  auth/                # Auth.js 配置 + auth 表访问（仅 web）
+├── auth.ts  auth.config.ts  auth/ # Auth.js 配置 + auth 表访问（仅 web）
+├── hooks.ts                      # @/lib/hooks → lib/client/hooks 的纯 re-export
 ├── server/backend.ts            # HMAC 签名 + 后端 URL
-├── server/request-guards.ts     # 遗留 API 守卫链
-├── ai/agents/ ai/prompts/        # 前端提示词与执行编排（迁移中）
-├── local/ supabase/             # 遗留数据层（迁移期）
+├── server/backend-proxy.ts      # 共享签名代理（allowlist + 穿越守卫）
+├── client/                       # 前端数据层（http + 领域客户端 + hooks）
+├── ai/agents/ ai/prompts/        # 前端提示词与执行编排（走后端 /api/agent）
 ├── mcp/ audit/ plugins/ training/ privacy/ pdf/
 services/
 ├── backend/app/                 # FastAPI + LangGraph
 │   ├── main.py  worker.py
-│   ├── api/v1/{health,me,data,agent}.py
-│   ├── core/{config,db,security,authz}.py
-│   ├── agents/{graph,harness,runtime,tools}.py
-│   └── models/domain.py
+│   ├── api/v1/{health,me,data,agent,training,mcp,audit,realtime,plugins,vectors}.py
+│   ├── core/{config,db,security,authz,events,notify}.py
+│   ├── agents/{harness,runtime,model,prompts,schemas,graphs/*}.py
+│   ├── models/{domain,research,training,plugins}.py
 │   └── alembic/versions/
 └── eval/
 db/init/  docker/  proxy/  messages/  __tests__/  e2e/
@@ -176,23 +177,19 @@ db/init/  docker/  proxy/  messages/  __tests__/  e2e/
 
 ### 前端
 
-1. **提示词**：`lib/ai/prompts/<name>.ts`。
-2. **注册**：`lib/ai/agents/registry.ts`（`AGENT_IDS`、`AGENT_META`）。
-3. **Schema**：`lib/ai/parse-agent-output.ts` 加 Zod schema。
-4. **路由**：`app/(app)/projects/[projectId]/<name>/page.tsx`（封装 `AgentPageTemplate`）。
-5. **配置**：`components/agents/agent-configs.tsx` 定义 `AgentPageConfig`：
-   - `InputsComponent`、`ResultsComponent?`、`OutputComponent`、`buildRunInput`
-   - `manuscriptSection` / `manuscriptOrder` / `onApplyExtra` / `customOnApply`
-   - `ModuleContentComponent?`（自定义 3 列布局）
-6. **输出面板**：`components/agents/outputs/<name>-output.tsx`。
-7. **阶段**：`components/module/stages.ts` 增加节点 + `primaryStageForAgent` 映射（强调色用完整静态类）。
-8. **i18n**：`messages/{zh-CN,en-US}.json` 的 `module` / `moduleInputs` / `output` 命名空间补全。
+1. **注册**：`lib/ai/agents/registry.ts`（`AGENT_IDS`、`AGENT_META`）。
+2. **Schema**：`lib/ai/parse-agent-output.ts` 加 Zod schema（解析后端产物文本）。
+3. **路由**：`app/(app)/projects/[projectId]/<name>/page.tsx`（封装 `AgentPageTemplate`）。
+4. **配置**：`components/agents/configs/<name>/` 提供 config + inputs + module content，并在 `components/agents/` 注册。
+5. **输出面板**：`components/agents/outputs/<name>-output.tsx`。
+6. **阶段**：`components/module/stages.ts` 增加节点 + `primaryStageForAgent` 映射（强调色用完整静态类）。
+7. **i18n**：`messages/{zh-CN,en-US}.json` 的 `module` / `moduleInputs` / `output` 命名空间补全。
 
-### 后端（目标）
+### 后端
 
-9. `services/backend/app/agents/graphs/<name>.py` 定义 LangGraph 图，经 `AgentHarness` 产生事件与产物。
-10. 在 `runtime.py` 注册图；`agent` 字段的 `pattern`（`agent.py` 的 `RunCreate`）加入新 id。
-11. 补 `services/backend/tests/` 契约测试。
+8. `services/backend/app/agents/graphs/<name>.py` 定义 LangGraph 图，经 `AgentHarness` 产生事件与产物（提示词/结构化输出加到 `prompts.py` / `schemas.py`）。
+9. 在 `app/agents/graphs/__init__.py` 注册 builder + `CONFIGS`，并把 id 加入 `AGENT_ID_PATTERN`（`agent.py` 的 `RunCreate` 复用该校验）。
+10. 补 `services/backend/tests/` 契约测试。
 
 ---
 
@@ -240,13 +237,13 @@ render(React.createElement(NextIntlClientProvider, { locale: "zh-CN", messages: 
 - 运行：`pnpm test:e2e`（自动起 dev server）或 `pnpm playwright test e2e/<file>`。
 - **认证**：E2E 走 Auth.js credentials。`e2e/global-setup.ts` 会向 Postgres 播种 staff/learner 用户，`playwright.config.ts` 注入 host 可达的 `AUTH_DATABASE_URL`（compose `.env` 指向 docker 内网 `postgres`，host 需 `127.0.0.1:${POSTGRES_PORT}`）。
 - **前置**：先起 Postgres — `docker compose up -d --wait postgres`（`pnpm quality-gate` 已自动执行该步）。数据库不可达时 globalSetup 会以明确信息失败。
-- Supabase 协作相关用例（`supabase-collaboration.spec.ts`、training-camp 建营用例）默认跳过，需 `REAL_SUPABASE_E2E=true` 与真实 Supabase 凭据。
+- 训练/智能体流程需要后端可达（`BACKEND_INTERNAL_URL`）。
 
 ### 后端（pytest）
 
 ```bash
-cd services/backend && ruff check && pytest
-# 或
+cd services/backend && uv run ruff check && uv run pytest
+# 或（容器内，Postgres 可达）
 pnpm agent:test
 ```
 

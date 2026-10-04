@@ -1,49 +1,55 @@
-# icholar v6.0
+# iScholar v6.0
 
 AI 原生学术科研平台 —— 从研究选题到论文投稿与返修，用 **7 大专业 AI 智能体** 陪伴研究者走完整个学术生命周期，并内置 **AI 科研教练训练 MVP**。
 
-> ⚠️ **架构重构进行中。** 目标平台为全 Docker 架构：Next.js 薄 BFF + Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。当前仓库中两套栈并存——旧栈（Dexie/IndexedDB + Supabase + 浏览器直连 DeepSeek）仍在服务 7 大智能体与训练营，新栈（`services/backend`）已完成**科研核心数据 API**（`/v1/data/*`）与可运行的 Agent 纵向切片，Web BFF 代理已就位但 UI 尚未切换。`doc/` 描述的是**目标架构**，历史实现见各文档附录；工程执行状态见 [`TODO.md`](./TODO.md)。
+> 平台为**全 Docker、后端单一数据源**架构：Next.js 14 薄 BFF（Auth.js + 签名代理）+ Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。
+> 旧栈（Dexie/IndexedDB + Supabase + 浏览器直连 DeepSeek）已**完全移除**：`lib/local/*`、`lib/supabase/*`、`lib/lms/*`、`@supabase/*`、`dexie` 均已删除，客户端只经签名 BFF 访问后端。
+> 工程执行状态见 [`TODO.md`](./TODO.md)，锁定决策见 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)；AI 助理指引见 [`AGENTS.md`](./AGENTS.md)。
 
 ---
 
-## 目标架构
+## 架构
 
 ```text
 浏览器 ── React Query ──► web（Next.js 14 + Auth.js，薄 BFF）
                               │  X-IScholar-User/-Timestamp/-Signature（HMAC-SHA256）
                               ▼
                      backend（Python FastAPI，单一服务）
-                       ├ /v1/data     领域 CRUD + 授权
-                       ├ /v1/agent    LangGraph 图 + AgentHarness + checkpointer
-                       ├ /v1/mcp      MCP 客户端池 + MCP 服务端
-                       ├ /v1/audit    SHA-256 审计链
-                       └ /v1/vectors  pgvector 检索 + 服务端嵌入
+                       ├ /v1/data      领域 CRUD + 授权
+                       ├ /v1/agent     LangGraph 图 + AgentHarness + checkpointer
+                       ├ /v1/training  训练营 / 组织 / LMS / 报表 / 证书
+                       ├ /v1/mcp       MCP 客户端池 + 服务端
+                       ├ /v1/audit     SHA-256 审计链 + 同意
+                       ├ /v1/realtime  LISTEN/NOTIFY → SSE
+                       └ /v1/vectors   pgvector 检索 + 服务端嵌入
                               │
                               ▼
-                     postgres(pgvector) · redis ──► DeepSeek（langchain-openai bind_tools）
-compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(profile)
+                     postgres(pgvector) · redis ──► DeepSeek（langchain-openai，bind_tools + 流式）
+compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(profile) · vectors(profile)
 ```
 
-**关键决策**（锁定于 `IMPLEMENTATION_PLAN.md`）：
+**关键决策**：
 
 - **数据层**：纯 PostgreSQL（pgvector），彻底移除 Supabase 与 Dexie/IndexedDB。
 - **身份**：Auth.js（NextAuth）+ PostgreSQL `users`；web 只直连 **auth 表**，Python 拥有全部领域表。
 - **服务间身份**：web 用 `AGENT_SERVICE_TOKEN` 对用户身份做 HMAC 签名后转发，后端**绝不信任未签名的用户 id**，并拒绝 ±300s 之外的过期签名。
-- **Agent 运行时**：Python LangGraph 服务，模型 `deepseek-v4-flash`（回退 `deepseek-chat`）。
+- **Agent 运行时**：Python LangGraph 服务，模型 `deepseek-v4-flash`（回退 `deepseek-chat`），支持 `bind_tools` 工具调用与 SSE 流式输出。
 - **部署**：全 Docker（不再以 Vercel 为目标），Caddy 负责 TLS 与 SSE。
 
 ---
 
-## 当前实现状态（2026-09-27 复查）
+## 实现状态
 
-| 区域 | 状态 | 说明 |
+| 阶段 | 状态 | 说明 |
 | --- | --- | --- |
-| 新后端 `services/backend` | 🟢 可运行切片 | 平台 API：`/v1/healthz` `/v1/readyz` `/v1/me`；科研核心 `/v1/data/*` 共 12 个资源（projects、manuscripts、manuscript-blocks〔reorder / 快照 / rollback〕、manuscript-versions、bib-items〔含 bulk〕、rag-chunks、attachments〔multipart 上传/下载 + 文件系统 blob〕、experiments、submissions、review-rounds、rebuttal-items、tasks）；`/v1/vectors`（embed / search / status，可选嵌入依赖）；`/v1/agent/*`（线程、运行、SSE 事件流、resume / cancel）；`/v1/training/*`（训练营/报名/提交/评审/互评/组织，Stage 1b 后端切片）；`/v1/mcp/*`（内置 + iScholar 领域工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池，Stage 3）；`/v1/plugins/*`（按用户插件安装/提示词包，Stage 6）；HMAC 服务身份（±300s）、12 个 Alembic 迁移、`AgentHarness`、LangGraph + Postgres checkpointer、worker（`SKIP LOCKED` 租约）均已实现；`/v1/agent/*` 运行 7 个智能体图 + Hermes 图（Stage 4） |
-| 认证与路由守卫 | 🟢 | Auth.js（Credentials + Postgres `users`）；Edge-safe `lib/auth.config.ts` + `middleware.ts` 守卫 `/dashboard|/projects|/settings|/tools|/training`（未登录 307 → `/login`） |
-| Agent 模型能力 | 🔴 未接入 | 图目前只调用 Crossref（`scholar.search`）→ 产出草稿 → `interrupt` 等待审批；DeepSeek `bind_tools` / 流式尚未接入 |
-| Web → 新后端 | 🟡 数据层就位（默认 legacy） | `app/api/agent/[...path]` 与 `app/api/data/[...path]` 签名代理已就位（共享 `lib/server/backend-proxy.ts`，根 allowlist `agent`/`data`/`vectors`）；科研核心前端数据层已迁移到 React Query（`lib/client/data.ts` + `lib/client/hooks/*` + `QueryProvider`），由 `NEXT_PUBLIC_DATA_BACKEND=legacy\|backend` 开关切换（默认 legacy，旧实现保留至 1c）；Agent UI 仍走旧链路 `/api/agents/[agent]` 直连 DeepSeek，`AGENT_RUNTIME` 开关未实现 |
-| 旧栈（Dexie + Supabase） | 🟡 仍在线 | 7 智能体、训练营、插件、审计账本等仍依赖 `lib/local/*`、`lib/supabase/*` |
-| 质量门禁 | 🟢 全绿 | `pnpm exec tsc --noEmit` / `pnpm lint` / `pnpm vitest run`（54 文件 273 用例）/ `pnpm build` / 后端 `ruff check` + `pytest` / 评估 `pytest`（离线报告）/ `pnpm test:e2e`（51 通过 / 1 跳过）均通过。E2E 需 host 可达 Postgres（`docker compose up -d --wait postgres`） |
+| Stage 0 · Docker + Auth | 🟢 | compose（web/backend/worker/postgres/redis/proxy）；Auth.js（Credentials + Postgres）+ Edge `middleware.ts` 守卫；HMAC 服务身份；Alembic + `db/init` auth 表 |
+| Stage 1 · 后端数据 API | 🟢 | `/v1/data/*`（12 资源）+ `/v1/vectors`；`/v1/training/*` 全套（analytics/export/LMS gradebook/consents/evidence）；`/v1/audit`、`/v1/realtime`、`/v1/plugins`；前端数据层 `lib/client/*` + React Query（`@/lib/hooks`） |
+| Stage 2 · Agent 运行时核心 | 🟡 | durable run API（threads/runs/SSE/resume/cancel）+ `AgentHarness` + LangGraph + Postgres checkpointer + worker；DeepSeek `bind_tools` 与 SSE 流式已接入；剩余：状态机契约测试 |
+| Stage 3 · MCP | 🟢 | 工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池 + `/v1/mcp` REST |
+| Stage 4 · 7 个智能体 | 🟢 | 7 张图 + prompts + Pydantic 结构化输出；Agent UI 走后端 `/api/agent` |
+| Stage 5 · 评估 harness | 🟢 | 离线数据集/检查/阈值报告 + `EVAL_MODE=live` + 可选 LLM judge（仓库无 CI） |
+| Stage 6 · Hermes/训练/插件/清理 | 🟡 | Hermes 图、插件按用户 Postgres、遗留直连路由已删除；defer：可检查点训练图、声明式插件工具 |
+| 质量门禁 | 🟢 | `tsc` / `lint` / `vitest`（44 文件 202 用例）/ `build` / 后端 `ruff` + `pytest`（136）/ 评估 `pytest` 全绿 |
 
 ---
 
@@ -53,37 +59,37 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 - **模块工作流外壳** — 每个智能体页是全屏工作区：固定顶栏 + 8 步进度条 + AI 免责横幅 + 输入/预览/输出卡片 + 可折叠使用说明书
 - **持久化 Agent 运行** — LangGraph 图 + `AgentHarness`（工具预算、权限、运行事件、幂等产物写入）；SSE 事件流可断线续传
 - **可恢复 / 可审批** — 运行支持 `waiting_for_input` / `waiting_for_review` 状态与 `resume` / `cancel`
-- **MCP 工具** — Crossref、Semantic Scholar、OpenAlex 学术检索（目标：真实 MCP 客户端 + 服务端）
-- **向量检索** — pgvector + 服务端嵌入：后端 `/v1/vectors`（embed/search/status，可选 `sentence-transformers`）已就绪；旧实现为浏览器端 Transformers.js
-- **审计追踪** — SHA-256 哈希链审计账本
-- **AI 科研教练 MVP** — `/training` 覆盖 7 个智能体的 8 个训练任务，含训练营管理、提交审核、个人报告
+- **模型工具调用 + 流式** — DeepSeek `bind_tools`（模型驱动工具调用）+ `message.delta` 增量输出
+- **MCP 工具** — Crossref、Semantic Scholar、OpenAlex 学术检索 + `ischolar.*` 领域工具
+- **向量检索** — pgvector + 服务端嵌入（`/v1/vectors`，可选 `sentence-transformers`）
+- **审计追踪** — SHA-256 哈希链审计账本；服务端 PII 门（训练提交/证据卡）
+- **AI 科研教练 MVP** — `/training` 覆盖 7 个智能体的 8 个训练任务，含训练营管理、提交审核、个人报告、LMS 成绩回传
 - **富文本编辑器** — Tiptap + LaTeX（KaTeX）+ 引用插入 + Markdown 导入导出 + 版本历史
 - **国际化** — 双语（简体中文 / English）；**单一暗色宇宙主题**（深空海军蓝 + 青色北斗七星）
 - **成本仪表盘** — 各智能体 token 消耗与花费统计
-- **插件系统** — 自定义 Agent / 提示词包 / 声明式 MCP 工具（目标：Postgres 按用户存储）
+- **插件系统** — 自定义 Agent / 提示词包，按用户持久化于 Postgres
 
 ---
 
-## 技术栈（目标）
+## 技术栈
 
-
-| 层            | 技术                                                             |
-| ------------- | ---------------------------------------------------------------- |
-| Web 框架      | Next.js 14（App Router）+ TypeScript（strict）                   |
-| Web 认证      | Auth.js（NextAuth v5，Credentials + PostgreSQL）                 |
-| Web 数据获取  | TanStack React Query（经 BFF 代理后端）                          |
-| BFF           | `app/api/agent/[...path]` + `app/api/data/[...path]`（`lib/server/backend-proxy.ts`，HMAC 签名 + allowlist） |
-| 后端          | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic            |
-| Agent 运行时  | LangGraph + langgraph-checkpoint-postgres + langchain-openai     |
-| 数据库        | PostgreSQL 16 + pgvector（Alembic 迁移）                         |
-| 缓存 / 限流   | Redis 7                                                          |
-| AI 模型       | DeepSeek`deepseek-v4-flash`（回退 `deepseek-chat`）              |
-| 反向代理      | Caddy 2（TLS + SSE 反缓冲）                                      |
-| UI            | Tailwind CSS + shadcn/ui（Radix primitives）                     |
-| 状态          | Zustand（locale）+ React Query                                   |
-| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题                            |
-| 编辑器        | Tiptap + KaTeX + Markdown 转换                                   |
-| 测试          | Vitest（前端）+ Playwright（E2E）+ pytest（后端）                |
+| 层 | 技术 |
+| --- | --- |
+| Web 框架 | Next.js 14（App Router）+ TypeScript（strict） |
+| Web 认证 | Auth.js（NextAuth v5，Credentials + PostgreSQL） |
+| Web 数据获取 | TanStack React Query（经 BFF 代理后端） |
+| BFF | `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` + `app/api/mcp/[tool]`（`lib/server/backend-proxy.ts`，HMAC 签名 + allowlist） |
+| 后端 | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic |
+| Agent 运行时 | LangGraph + langgraph-checkpoint-postgres + langchain-openai |
+| 数据库 | PostgreSQL 16 + pgvector（Alembic 迁移，12 个，head `20260929_0012`） |
+| 缓存 / 限流 | Redis 7 |
+| AI 模型 | DeepSeek `deepseek-v4-flash`（回退 `deepseek-chat`） |
+| 反向代理 | Caddy 2（TLS + SSE 反缓冲） |
+| UI | Tailwind CSS + shadcn/ui（Radix primitives） |
+| 状态 | Zustand（locale）+ React Query |
+| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题 |
+| 编辑器 | Tiptap + KaTeX + Markdown 转换 |
+| 测试 | Vitest（前端）+ Playwright（E2E）+ pytest（后端） |
 
 ---
 
@@ -92,15 +98,15 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 ### 前置条件
 
 - **Node.js ≥ 22**（**Node 20 会因 `Promise.withResolvers` 缺失导致动态路由 SSR 崩溃**）
-- **pnpm ≥ 8** — `npm install -g pnpm`
+- **pnpm 10** — `corepack enable`（`packageManager` 已固定 `pnpm@10.31.0`）
 - **Docker + Docker Compose**（推荐的全平台运行方式）
 - **Python 3.12 + [uv](https://docs.astral.sh/uv/)**（仅在你直接开发后端时需要）
 - **DeepSeek API Key** — [platform.deepseek.com](https://platform.deepseek.com/)
 
-### 方式 A：全 Docker（目标平台）
+### 方式 A：全 Docker
 
 ```bash
-cp .env.example .env          # 填入 DEEPSEEK_API_KEY、AUTH_SECRET、AGENT_SERVICE_TOKEN
+cp .env.example .env          # 填入 POSTGRES_PASSWORD、AUTH_SECRET、AGENT_SERVICE_TOKEN、DEEPSEEK_API_KEY
 pnpm docker:up                # 构建并启动 web/backend/worker/postgres/redis/proxy
 docker compose config         # 修改 compose 前先校验
 ```
@@ -149,8 +155,6 @@ STORAGE_DIR=/data/storage
 DEEPSEEK_API_KEY=sk-your-key
 DEEPSEEK_MODEL=deepseek-v4-flash
 REDIS_URL=redis://redis:6379/0
-# 科研数据层开关：legacy（默认，Dexie/Supabase）| backend（React Query + /api/data）
-NEXT_PUBLIC_DATA_BACKEND=legacy
 ```
 
 > `AGENT_SERVICE_TOKEN`、`BACKEND_INTERNAL_URL`、`DEEPSEEK_API_KEY`、`AUTH_SECRET` 均为**服务端专用**，绝不能加 `NEXT_PUBLIC_` 前缀或暴露给浏览器。`.env` 已被 git 忽略，切勿提交。
@@ -171,12 +175,11 @@ pnpm exec tsc --noEmit           # 没有 typecheck 脚本；pnpm build 也会�
 
 # 质量门禁
 pnpm quality-gate                # lint -> vitest -> build -> e2e（本地全绿）
-pnpm quality-gate:full           # 含 Supabase schema/验收（迁移期遗留检查）
 
 # Docker 平台
 pnpm docker:up / docker:down     # 完整 compose 栈
 pnpm agent:dev                   # 后端热重载 overlay
-pnpm agent:test                  # docker compose run --rm backend pytest
+pnpm agent:test                  # docker compose run --rm backend pytest（后端可达 Postgres）
 pnpm agent:eval                  # eval profile（离线数据集 + 确定性检查 + 阈值报告）
 docker compose config            # 修改 compose 前校验
 
@@ -195,28 +198,28 @@ app/                              # Next.js App Router
 │   ├── dashboard/  projects/  settings/  tools/  training/
 ├── api/
 │   ├── auth/[...nextauth]/       # Auth.js 路由处理器
-│   ├── agent/ data/ vectors/ audit/ realtime/ plugins/  # ★ 指向 Python 后端的签名薄代理
-│   └── mcp/[tool]/               # ★ MCP 适配器（重塑 flat body → 后端契约）
+│   ├── agent/ data/ training/ audit/ realtime/ vectors/ plugins/  # ★ 指向 Python 后端的签名薄代理
+│   ├── mcp/[tool]/               # ★ MCP 适配器（重塑 flat body → 后端契约）
+│   └── invites/                  # web 自有：训练邀请（邮件 + 签名接受链接）
 components/
 ├── module/                       # 模块工作流外壳（顶栏、8 步进度条、卡片、说明书）
-├── agents/                       # AgentPageTemplate + agent-configs + outputs/
+├── agents/                       # AgentPageTemplate + configs/<agent>/ + outputs/
 ├── editor/ citations/ layouts/ providers/ ui/  training/
 lib/
 ├── auth.ts  auth.config.ts       # Auth.js 配置（auth.ts 含 pg；auth.config.ts 为 Edge-safe）
+├── hooks.ts                      # @/lib/hooks → lib/client/hooks 的纯 re-export
 ├── server/backend.ts             # ★ HMAC 签名 + 后端 URL（BFF 助手）
 ├── server/backend-proxy.ts       # ★ 共享签名代理（allowlist + 路径穿越守卫）
-├── client/                        # ★ 科研数据层（React Query + /api/data 客户端）
-├── server/request-guards.ts      # 遗留 API 守卫链
-├── ai/agents/  ai/prompts/       # 前端提示词/执行编排（迁移中）
-├── local/  supabase/             # 遗留数据层（迁移期，逐步删除）
-├── mcp/ audit/ plugins/ training/ privacy/ pdf/
+├── client/                       # ★ 前端数据层（http + 各领域客户端 + React Query hooks）
+├── ai/agents/  ai/prompts/       # 前端提示词/执行编排（走后端 /api/agent）
+├── mcp/ plugins/ audit/ training/ privacy/ pdf/
 services/
 ├── backend/                      # ★ FastAPI + LangGraph + MCP
 │   ├── app/main.py               #   入口
 │   ├── app/api/v1/               #   /healthz /readyz /me /data /vectors /agent /training /mcp /audit /realtime /plugins
-│   ├── app/core/                 #   config / db / security / authz
-│   ├── app/agents/               #   graph / harness / runtime / tools
-│   ├── app/models/               #   domain.py / research.py（SQLAlchemy 领域模型）
+│   ├── app/core/                 #   config / db / security / authz / events
+│   ├── app/agents/               #   harness / runtime / model / prompts / schemas / graphs/*
+│   ├── app/models/               #   domain.py / research.py / training.py / plugins.py
 │   ├── app/storage/              #   文件系统 blob（sha-256、25 MiB 上限）
 │   ├── app/vectors/              #   服务端嵌入（可选依赖）+ backfill worker
 │   ├── app/worker.py             #   agent run worker 入口
@@ -234,27 +237,23 @@ __tests__/  e2e/                  # 前端测试；后端测试在 services/back
 
 完整生命周期：**选题 → 综述 → 设计 → 数据 → 写作 → 投稿 → 返修**。8 步进度条中「数据」与「分析」两步共享 DataPilot 智能体。
 
+| # | 智能体 | 输入 | 输出 / 应用 |
+| - | --- | --- | --- |
+| 1 | TopicScout | 学科领域、关键词、目标期刊 | 3 个候选选题（新颖性/价值/可行性评分）→ 写入 `topic` 区块 |
+| 2 | LitReview | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目 |
+| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估 |
+| 4 | DataPilot | 数据来源、收集方法 | 分析脚本（Python/R）、清洗步骤、分析计划 |
+| 5 | IMRaDWriter | 章节、引用格式 | 富文本正文 + 参考文献 → 编辑器可编辑 |
+| 6 | SubmitMatch | 摘要、关键词、OA 偏好 | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包 |
+| 7 | RebuttalShow | 审稿意见文本 / PDF | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目 |
 
-| # | 智能体           | 输入                         | 输出 / 应用                                               |
-| - | ---------------- | ---------------------------- | --------------------------------------------------------- |
-| 1 | TopicScout       | 学科领域、关键词、目标期刊   | 3 个候选选题（新颖性/价值/可行性评分）→ 写入`topic` 区块 |
-| 2 | LitReview        | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目                      |
-| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估                                  |
-| 4 | DataPilot        | 数据来源、收集方法           | 分析脚本（Python/R）、清洗步骤、分析计划                  |
-| 5 | IMRaDWriter      | 章节、引用格式               | 富文本正文 + 参考文献 → 编辑器可编辑                     |
-| 6 | SubmitMatch      | 摘要、关键词、OA 偏好        | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包            |
-| 7 | RebuttalShow     | 审稿意见文本 / PDF           | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目              |
-
-> 智能体页共享 `AgentPageTemplate`，行为定义在两处：`components/agents/agent-configs.tsx` 的配置对象，以及 `components/agents/configs/<agent>/` 的按智能体目录。
+> 智能体页共享 `AgentPageTemplate`，行为定义在 `components/agents/configs/<agent>/` 的按智能体目录，注册表在 `components/agents/`。
 
 ### 添加一个新智能体
 
-1. `lib/ai/prompts/<name>.ts` 添加提示词，`lib/ai/agents/registry.ts` 注册
-2. `lib/ai/parse-agent-output.ts` 添加 Zod schema
-3. `app/(app)/projects/[projectId]/<name>/page.tsx` 添加页面
-4. `components/agents/agent-configs.tsx` 添加配置，`components/agents/outputs/` 添加输出面板
-5. `components/module/stages.ts` 增加阶段映射；`messages/{zh-CN,en-US}.json` 补全文案
-6. 后端：在 `services/backend/app/agents/` 增加对应 LangGraph 图（目标）
+1. 前端：在 `components/agents/configs/<agent>/` 增加配置 + 输入 + 模块内容，并在 `components/agents/` 注册；`components/module/stages.ts` 增加阶段映射；补 `messages/{zh-CN,en-US}.json`
+2. 后端：在 `services/backend/app/agents/graphs/` 增加 LangGraph 图（`prompts.py`/`schemas.py` 补提示词与结构化输出），并在 `app/agents/graphs/__init__.py` 注册
+3. `lib/ai/agents/registry.ts` 注册智能体元数据
 
 详见 [开发指南](./doc/development.md)。
 
@@ -268,16 +267,15 @@ __tests__/  e2e/                  # 前端测试；后端测试在 services/back
 - 管理：`/training/manage` 训练营、成员、任务编排、报表、导出、结业证
 - 审核：`/training/review` 队列、证据卡、反馈模板、认领
 - 角色：全局 `learner` / `librarian` / `admin`，营内 `learner` / `ta`
-
-> 目标实现中，训练数据同样由 Python 后端 + PostgreSQL 承载；当前处于迁移期。
+- 数据由 Python 后端 + PostgreSQL 承载；提交与证据卡经服务端 PII 门（`400 SENSITIVE_CONTENT`）
 
 ---
 
 ## 数据与网络边界
 
-- 目标平台中，科研与训练数据存储在 **PostgreSQL**（由 Python 后端持有），不再写入浏览器 IndexedDB。
-- DeepSeek 流式生成，以及 Crossref、OpenAlex、Semantic Scholar 等外部服务仍会产生网络请求。Agent 与 MCP 外部调用需要近期同意证明并记录 `consent_id`。
-- 不要将「数据在自有服务器」理解为「文本绝不离开设备」；敏感材料应在调用外部服务前脱敏。
+- 科研与训练数据存储在 **PostgreSQL**（由 Python 后端持有），不写入浏览器 IndexedDB。
+- DeepSeek 生成（含流式），以及 Crossref、OpenAlex、Semantic Scholar 等外部服务仍会产生网络请求。Agent 与 MCP 外部调用需要近期同意证明并记录 `consent_id`。
+- 不要将「数据在自有服务器」理解为「文本绝不离开设备」；敏感材料应在调用外部服务前脱敏（服务端 PII 门会拒绝明显敏感内容）。
 
 ---
 
@@ -290,11 +288,9 @@ pnpm docker:up
 ```
 
 - `proxy`（Caddy）在 80/443 终止 TLS，并将 SSE 关闭缓冲转发到 `web`
-- `migrate` 服务在 backend/worker 启动前自动迁移（当前 12 个 Alembic 迁移）
+- `migrate` 服务在 backend/worker 启动前自动迁移（当前 12 个 Alembic 迁移，head `20260929_0012`）
 - `worker` 消费后台任务（`SKIP LOCKED` 租约）；`eval` 以 `--profile eval` 启用，服务端嵌入以 `--profile vectors` 启用
 - `storage` 卷挂载到 backend/worker 的 `STORAGE_DIR`，承载附件与脚本 blob
-
-> 旧的 Vercel 部署配置已移除；目标架构为全 Docker。
 
 ---
 
@@ -314,14 +310,6 @@ pnpm docker:up
 
 ---
 
-## 附录：历史架构（迁移中）
-
-重构前，iScholar 采用**浏览器本地优先**架构：科研与训练数据经 Dexie.js 存入浏览器 IndexedDB（库名 `ischolar-v6-local`），并可选同步到 Supabase（Auth + Postgres + RLS）；向量嵌入由浏览器端 Transformers.js（`Xenova/all-MiniLM-L6-v2`）生成。该实现仍存在于 `lib/local/*`、`lib/supabase/*` 及部分 API 路由中，正按 `IMPLEMENTATION_PLAN.md` 的阶段逐步删除。
-
----
-
 ## License
 
 Private project.
-
-# iScholar6

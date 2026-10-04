@@ -2,13 +2,11 @@
 
 > 本文档提供 7 大 AI 智能体的完整输入/输出示例，帮助您快速上手 iScholar。
 >
-> 🏗️ **目标架构**：智能体由后端 LangGraph 运行时执行（模型 `deepseek-v4-flash`），运行事件经 SSE 实时推送，结构化产物经 `AgentHarness` 幂等写入 PostgreSQL。输入/输出**结构**与本文档示例一致；下方 JSON 是各智能体的结构化输出契约。
+> 🏗️ **架构**：智能体由后端 LangGraph 运行时执行（模型 `deepseek-v4-flash`，支持 `bind_tools`），运行输出经 SSE（`message.delta`）流式推送，结构化产物经 `AgentHarness` 幂等写入 PostgreSQL。下方 JSON 是各智能体的结构化输出契约。
 >
 > 🎨 **v6.0 模块页采用 3 列独立滚动布局**：顶栏 + 8 步工作流进度条固定在上方，左/中/右三列各自独立滚动。UI 组件包括：标签芯片（多选切换）、分段控件（研究类型选择）、可点击状态徽章（文献筛选）、SVG 环形进度条（Fit-score）和交互式 checklist（投稿材料）。
 >
 > 详见 [使用指南](./usage.md) 了解每个模块的完整 UI 说明；架构与数据流见[系统架构](./architecture.md)。
-
-> ⚠️ 重构进行中：部分智能体的后端图仍在迁移（见 `IMPLEMENTATION_PLAN.md` Stage 2/4），迁移期输出由旧直连 DeepSeek 路径产生，结构与示例一致。
 
 ---
 

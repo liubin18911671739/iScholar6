@@ -1,14 +1,12 @@
 # 插件系统
 
-> 目标架构中，插件数据存储在 **PostgreSQL、按用户归属**（`IMPLEMENTATION_PLAN.md` Stage 6）；插件通过 BFF 经后端读写，可跨设备使用。
->
-> ⚠️ 重构进行中：当前实现为浏览器本地存储（IndexedDB），见文末[附录](#附录本地实现迁移中)。
+> 插件数据存储在 **PostgreSQL、按用户归属**；插件通过 BFF（`/api/plugins` → `/v1/plugins`）读写，可跨设备使用。
 
 iScholar 支持**基于清单（manifest）的插件**，包含三类能力：
 
 1. **自定义 Agent** — 通用表单 UI + 系统/用户提示词模板
 2. **提示词包（Prompt Pack）** — 覆盖内置或插件 Agent 的系统提示词
-3. **声明式 MCP 工具** — HTTPS 工具 + JSON Schema 参数
+3. **声明式 MCP 工具** — HTTPS 工具 + JSON Schema 参数（后端按**用户**注册与执行，见 `app/mcp/plugin_tools.py`；不使用进程级全局注册表，也不经共享 MCP 服务端暴露）
 
 ---
 
@@ -56,9 +54,11 @@ iScholar 支持**基于清单（manifest）的插件**，包含三类能力：
 
 ### 声明式 MCP 工具
 
-- 仅 `https`；私有主机被拦截；不允许 `Authorization` / API-key 头。
-- 外部工具调用需要同意证明（`consentProof`，含 `consentId`）。
-- 内置工具（`openalex_search` 等）由后端 MCP 层执行。
+- 仅 `https`；私有/链路本地/元数据主机被拦截；`GET`/`POST`；重定向关闭、响应上限 2 MiB。
+- `Authorization` / `Cookie` / `Host` / `x-api-key` 等敏感头被清单剥离（凭据仅服务端持有）。
+- 工具**按 `owner_id` 解析**（`load_user_tools`），不会进入全局注册表，也**不会**经共享 MCP 服务端暴露；不能覆盖内置工具名。
+- 后端运行路径（`AgentHarness.call_tool`）与 `/v1/mcp` REST 均需同意证明。
+- 参数按 JSON-Schema 子集校验（必填 + 封闭键集）。
 
 参见 `fixtures/plugins/open-library-tools.json`。
 
@@ -74,26 +74,17 @@ iScholar 支持**基于清单（manifest）的插件**，包含三类能力：
 
 ---
 
-## 目标实现与开发者地图
+## 实现与开发者地图
 
 | 模块 | 职责 |
 | --- | --- |
-| `lib/plugins/*` | manifest schema、注册表、安装、提示词解析、SSRF 安全 HTTP |
-| 后端 `plugins` 表 + `/v1/data/plugins/*` | 按用户存储安装与提示词包选择（Stage 6） |
-| 后端 `agents` 图/harness | 插件 Agent 运行（复用内置运行时） |
-| `app/.../projects/[projectId]/[agentId]/page.tsx` | 动态插件 Agent 路由 |
+| `lib/plugins/*` | manifest schema、注册表、安装、提示词解析、客户端校验 |
+| `lib/client/plugins.ts` + `app/api/plugins/[...path]` | 客户端与 BFF 代理 |
+| 后端 `plugin_installs` / `prompt_pack_selections` + `/v1/plugins` | 按用户存储安装与提示词包选择 |
+| 后端 `app/mcp/plugin_tools.py` | 解析/校验/执行声明式工具；`load_user_tools` 按 owner 解析 |
+| `app/agents/harness.py` + `app/agents/runtime.py` | `p.<plugin>.<key>` 运行时注入 owner 工具（allow-list + 预算 + 事件） |
+| `app/api/v1/mcp.py` | `/v1/mcp/tools` 列出内置 + 本人插件工具；调用受同意门约束 |
+| 后端 `app/agents/graphs/plugin.py` | 插件 Agent 运行（复用内置运行时） |
 | `components/plugins/*` | 设置页 + 通用 Agent UI |
 
 内置 Agent 保持静态路由与专属 UI。
-
----
-
-## 附录：本地实现（迁移中）
-
-当前插件数据存在浏览器 IndexedDB（Dexie schema v4 的 `pluginInstalls`、`promptPackSelections`），**不参与协作同步**。可通过环境变量 `NEXT_PUBLIC_PLUGIN_SYSTEM=false` 关闭。
-
-迁移到 target 后：
-
-- `pluginInstalls` / `promptPackSelections` 迁入 Postgres，按 `owner_id` 归属。
-- 自定义 Agent 的运行改由后端 LangGraph 图执行。
-- 声明式 MCP 工具改由后端 MCP 客户端池执行（保留 SSRF / 体量守卫）。

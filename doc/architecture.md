@@ -1,8 +1,7 @@
 # iScholar v6.0 — 系统架构
 
-> 本文档描述**目标架构**：全 Docker 平台，Next.js 薄 BFF + Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。
->
-> ⚠️ **重构进行中（Stage 0）。** 旧栈（Dexie/IndexedDB + Supabase）仍在部分代码中运行，见文末[附录 A](#附录-a历史架构迁移中)。
+> 本文档描述**当前架构**：全 Docker 平台，Next.js 薄 BFF + Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。
+> 旧栈（Dexie/IndexedDB + Supabase）已完全移除。
 >
 > 权威阶段状态见 [`IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md)；数据库细节见[数据库结构说明](./database.md)；部署见[部署指南](./deployment.md)。
 
@@ -135,22 +134,25 @@ app/                                # Next.js App Router
 │   ├── dashboard/ projects/ settings/ tools/ training/
 ├── api/
 │   ├── auth/[...nextauth]/route.ts # Auth.js handlers
-│   ├── agent/[...path]/route.ts    # ★ 签名薄代理 → 后端 /v1/*
-│   └── …                           # 遗留：agents / mcp / hermes / training
+│   ├── agent|data|training|audit|realtime|vectors|plugins/[...path]/route.ts  # ★ 签名薄代理 → 后端 /v1/*
+│   ├── mcp/[tool]/route.ts         # MCP 适配器（flat body → 后端契约）
+│   └── invites/                    # web 自有：训练邀请（邮件 + 签名接受链接）
 components/                          # UI 层（见第 10 节）
 lib/
-├── auth.ts  auth/{users,password}.ts
+├── auth.ts  auth.config.ts  auth/{users,password}.ts
 ├── server/
 │   ├── backend.ts                  # ★ backendIdentityHeaders() / backendUrl()
-│   └── request-guards.ts           # 遗留 API 守卫（consentProof 等）
-├── ai/  local/  supabase/  mcp/  audit/  plugins/  training/  privacy/  pdf/
+│   └── backend-proxy.ts            # ★ 共享签名代理（allowlist + 路径穿越守卫）
+├── hooks.ts                        # @/lib/hooks → lib/client/hooks 的纯 re-export
+├── client/                         # ★ 前端数据层（http + 领域客户端 + React Query hooks）
+├── ai/  mcp/  audit/  plugins/  training/  privacy/  pdf/
 services/
 ├── backend/
-│   ├── app/main.py                 # FastAPI 入口 + CORS + lifespan
-│   ├── app/api/v1/                 # health · me · data · agent
-│   ├── app/core/                   # config · db · security · authz
-│   ├── app/agents/                 # graph · harness · runtime · tools
-│   ├── app/models/domain.py        # SQLAlchemy 模型
+│   ├── app/main.py                 # FastAPI 入口 + CORS + max-body 中间件 + lifespan
+│   ├── app/api/v1/                 # health · me · data · agent · training · mcp · audit · realtime · plugins · vectors
+│   ├── app/core/                   # config · db · security · authz · events · notify
+│   ├── app/agents/                 # harness · runtime · model · prompts · schemas · graphs/*
+│   ├── app/models/                 # domain.py · research.py · training.py · plugins.py
 │   ├── app/worker.py               # worker 入口
 │   └── alembic/versions/           # ★ 领域 schema 迁移
 └── eval/
@@ -201,16 +203,18 @@ return {
 
 ### 4.3 薄代理
 
-`app/api/agent/[...path]/route.ts` 是唯一指向新后端的通道：
+`lib/server/backend-proxy.ts` 的 `proxyToBackend()` 是所有领域代理的共用实现（`agent` / `data` / `training` / `audit` / `realtime` / `vectors` / `plugins`）：
 
-- 强制 `runtime = "nodejs"`、`dynamic = "force-dynamic"`
+- 根 allowlist（仅上述前缀）+ 路径穿越守卫（每段 `encodeURIComponent`，断言 `/v1/<root>` 前缀）
 - 未认证 → `401 { ok:false, error:"UNAUTHENTICATED" }`
 - 转发 `content-type` / `idempotency-key` / `last-event-id` 头
-- `POST`/`GET` 透传响应流（支持 SSE）
+- `GET`/`HEAD` 透传响应体（支持 SSE，关闭缓冲）
+
+`app/api/mcp/[tool]` 是独立适配器（直接调用 `backendIdentityHeaders`，重塑 flat body → 后端契约）。`app/api/invites`、`app/api/invites/accept` 为 web 自有路由。
 
 ### 4.4 数据获取
 
-目标使用 **TanStack React Query** 读取 `/api/agent/*`（经 BFF），缓存与失效策略在 hooks 中声明。迁移期组件仍大量使用遗留的 `lib/local/hooks`（Dexie `useLiveQuery`），按 Stage 1 逐步替换。
+使用 **TanStack React Query** 读取 `/api/*`（经 BFF），缓存与失效策略在 `lib/client/hooks/*` 中声明；公共导入面为 `@/lib/hooks`（`lib/client/hooks` 的纯 re-export）。变更后按需 `invalidateTrainingQueries()` 或对应 `qk.*` key 失效。
 
 ---
 
@@ -389,14 +393,12 @@ data: <json>
 - **守卫**：`app/mcp/guards.py` 迁移旧实现——仅 HTTPS、禁私有/链路本地/元数据主机、禁嵌入凭据、禁重定向、响应上限 2 MiB（`MCP_RESPONSE_MAX_BYTES`）；入站上限 `MCP_REQUEST_MAX_BYTES`。
 - **REST + BFF**：`/v1/mcp/tools`（签名身份 + `ai_consents_v2` 同意校验）；web 侧 `app/api/mcp/[tool]` 为薄代理（重映射旧扁平 body）。
 - **运行时**：`AgentHarness.call_tool` 经注册表执行（保留 allow-list、预算、运行事件）。
-
-待续：声明式/插件工具持久化（Stage 6）。
-
-迁移期旧实现：`lib/mcp/gateway.ts` + `lib/plugins/mcp-declarative.ts`（SSRF/2 MiB 守卫来源）。
+- **按用户声明式工具**：`app/mcp/plugin_tools.py` 从 `plugin_installs.manifest.mcpTools` 解析 HTTPS 工具，`load_user_tools(owner_id)` 按 owner 解析（不进全局注册表）；`execute_run` 为 `p.<plugin>.<key>` 运行注入 owner 工具，`AgentHarness` 与 `/v1/mcp` 执行时复用 SSRF/体量守卫。**不在共享 MCP 服务端暴露。**
 
 ## 9.1 Agent 图与评估（Stage 4/5）
 
-- **每智能体一图**：`app/agents/graphs/{topic,litreview,design,data,write,submit,rebuttal}.py`（+`hermes.py` 对话图）；共享 `_common.build_agent_graph`（`plan → context → research → draft(model) → review(interrupt)`）。
+- **每智能体一图**：`app/agents/graphs/{topic,litreview,design,data,write,submit,rebuttal}.py`（+`hermes.py` 对话图、`training.py` 可检查点多轮教练图）；共享 `_common.build_agent_graph`（`plan → context → draft(model + 工具循环) → review(interrupt)`）。模型经 `bind_tools` 决定工具调用，`run_agent_draft` 通过 harness 执行并流式输出 `message.delta`。
+- **多轮教练**：`training.py` 用 `add_messages` reducer 在 `thread_id` 检查点上累积对话（复用同一 thread 即多轮），无产物/中断，回复经 `draft.text` 返回。
 - **提示词**：`app/agents/prompts.py` 移植系统提示与用户提示组装（含 Hermes 模块助手提示）。
 - **上下文**：`contextFrom` → 从 `artifacts` 取上游已批准产物注入（`maxChars` 生效）。
 - **结构化输出**：`app/agents/schemas.py`（Zod → Pydantic，解析最后一个 ```json 围栏）。
@@ -457,13 +459,13 @@ data: <json>
 
 ### 11.2 E2E（Playwright）
 
-- 仅 Chromium；**固定端口 3100**、`reuseExistingServer: false`、`workers: 1`（避免 IndexedDB/对话框竞态）——**不要**改并行。
-- `e2e/supabase-collaboration.spec.ts` 仅在 `REAL_SUPABASE_E2E=true` 且配置真实凭据时运行（迁移期遗留）。
+- 仅 Chromium；**固定端口 3100**、`reuseExistingServer: false`、`workers: 1`（避免对话框竞态）——**不要**改并行。
+- E2E 走 Auth.js credentials；`e2e/global-setup.ts` 向 Postgres 播种 staff/learner 用户。训练/智能体流程需后端可达（`BACKEND_INTERNAL_URL`）。
 
 ### 11.3 后端（pytest）
 
 - `services/backend/tests/`（`asyncio_mode=auto`）；`ruff check`（line-length 120）。
-- 运行：`pnpm agent:test` 或 `cd services/backend && pytest`。
+- 运行：`pnpm agent:test` 或 `cd services/backend && uv run pytest`。
 - `pyrightconfig.json` 覆盖 `services/backend/app`、`tests` 与 `services/eval`。
 
 ---
@@ -471,47 +473,29 @@ data: <json>
 ## 12. 构建与部署
 
 - `next.config.mjs`：`output: "standalone"`（web Docker 镜像依赖）、`serverActions.bodySizeLimit` 10MB、客户端 webpack fallback 关闭 `fs`/`path`/`crypto`。
-- compose 拓扑：`web · backend · worker · postgres · redis · proxy · eval(profile)`；`migrate` 先行。
-- `docker/web.Dockerfile` 多阶段构建，构建期需 `AUTH_SECRET`（Auth.js 静态分析会校验）。
+- compose 拓扑：`web · backend · worker · postgres · redis · proxy · eval(profile) · vectors(profile)`；`migrate` 先行。
+- `docker/web.Dockerfile` 多阶段构建；`AUTH_SECRET` 仅运行时需要（构建期以占位符防御性保留）。
 - Caddy（`proxy/Caddyfile`）终止 TLS 并为 SSE 关闭缓冲。
-- **不再以 Vercel 为目标**；`vercel.json` 与旧部署文档作为遗留。
+- **全 Docker 部署**，不再以 Vercel 为目标。
 
 详见[部署指南](./deployment.md)。
 
 ---
 
-## 13. 迁移策略与已知问题
+## 13. 已完成迁移
 
-**策略**（见 `IMPLEMENTATION_PLAN.md`）：
+旧栈（Dexie/IndexedDB + Supabase + 浏览器直连 DeepSeek）已完全移除，见 `TODO.md` 与 `IMPLEMENTATION_PLAN.md`：
 
-- 特性冻结分支，`AGENT_RUNTIME=langgraph|legacy` 开关灰度切换。
-- 前端从 Dexie hooks 逐步切到 React Query shim。
-- 旧栈代码在对应 Stage 完成后整体删除，不做无谓的就地改造。
-
-**迁移期不一致（有意保留，勿据此判断架构）**：
-
-- `middleware.ts` 仍只为 `/training/:path*` 刷新 Supabase auth。
-- `isCollaborativeMode()` 已弃用且硬编码 `true`；`NEXT_PUBLIC_COLLABORATIVE_MODE` 仅 Playwright 设置。
-- `lib/local/*`、`lib/supabase/*`、`lib/mcp/*` 与 `app/api/{agents,mcp,hermes,training}` 属旧栈。
-- 大型文件 `components/agents/agent-configs.tsx`、`lib/local/hooks.ts` 随迁移拆分。
+- 数据层：`lib/local/*`、`lib/supabase/*`、`lib/lms/*`、`supabase/`、Supabase 脚本/E2E spec 全部删除；依赖 `@supabase/*`、`dexie`、`dexie-react-hooks`、`@huggingface/transformers` 已移除。
+- Agent：`app/api/{agents,hermes,agent-runs}`、`lib/server/agent-runtime.ts` 删除；全部经后端 `/api/agent` 运行。
+- 训练：19 个旧训练路由删除，仅保留 `app/api/training/[...path]` BFF 代理。
+- 环境变量：`NEXT_PUBLIC_DATA_BACKEND`、`NEXT_PUBLIC_COLLABORATIVE_MODE`、`NEXT_PUBLIC_SUPABASE_*` 已移除。
 
 ---
 
 ## 附录
 
-### A. 历史架构（迁移中）
-
-重构前为**浏览器本地优先**：
-
-- **本地库**：Dexie.js（IndexedDB），库名 `ischolar-v6-local`，含科研表、训练表、插件表；写操作 fire-and-forget 镜像到 Supabase。
-- **协作层**：Supabase Auth + PostgreSQL + RLS，训练营 / 成员 / 提交 / 审核 / 同意记录；角色 `learner`/`librarian`/`admin` 与营内 `ta`。
-- **向量**：浏览器端 Transformers.js（`Xenova/all-MiniLM-L6-v2`，384 维）。
-- **Agent**：Next.js `/api/agents/[agent]` 直连 DeepSeek，`runAgentStream` 编排。
-- **认证**：本地密码（随机盐 + SHA-256）+ localStorage 会话。
-
-这些实现仍在运行，按 Stage 逐步删除。表结构与迁移清单的历史版本见[数据库结构说明](./database.md)附录。
-
-### B. 智能体输入 / 输出总览
+### A. 智能体输入 / 输出总览
 
 | 智能体 | 输入字段 | 输出结构 |
 | --- | --- | --- |
@@ -523,7 +507,7 @@ data: <json>
 | Submit | abstract, keywords, openAccess | journals[{name,fitScore,impactFactor,reviewTimeline,openAccess,rationale}], checklist[] |
 | Rebuttal | reviewerComments, pdfFile | responses[{commentNumber,comment,response,changeLocation,evidence}] |
 
-### C. Key 文件索引
+### B. Key 文件索引
 
 | 文件 | 职责 |
 | --- | --- |
@@ -532,14 +516,15 @@ data: <json>
 | `services/backend/app/core/config.py` | 后端设置 |
 | `services/backend/app/models/domain.py` | 领域模型 |
 | `services/backend/app/agents/harness.py` | AgentHarness（预算/事件/幂等产物） |
+| `services/backend/app/agents/model.py` | 模型抽象（Fake/DeepSeek，bind_tools + 流式） |
 | `services/backend/app/api/v1/agent.py` | Agent API + SSE |
 | `services/backend/alembic/versions/` | 领域迁移 |
 | `db/init/*.sql` | 扩展 + auth 表 |
 | `lib/auth.ts` / `lib/auth/users.ts` | Auth.js 配置 / auth 表访问 |
-| `lib/server/backend.ts` | BFF 签名助手 |
-| `app/api/agent/[...path]/route.ts` | BFF 薄代理 |
+| `lib/server/backend.ts` / `lib/server/backend-proxy.ts` | BFF 签名助手 / 共享代理 |
+| `lib/client/*` | 前端数据层（http + 领域客户端 + hooks） |
 | `app/(app)/layout.tsx` | 条件布局 |
-| `components/agents/agent-configs.tsx` | 智能体 UI 配置 |
+| `components/agents/configs/<agent>/` | 智能体 UI 配置与内容 |
 | `components/module/stages.ts` | 8 阶段 + 强调色 |
 | `messages/{zh-CN,en-US}.json` | i18n 文案 |
 | `docker-compose.yml` / `proxy/Caddyfile` | 平台拓扑 / 反代 |

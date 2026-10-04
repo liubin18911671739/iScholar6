@@ -1,8 +1,6 @@
 # 部署指南
 
-> iScholar v6.0 的**目标部署形态是「全 Docker」**：`web` + `backend` + `worker` + `postgres(pgvector)` + `redis` + `proxy(Caddy)`，数据存储在自有 PostgreSQL。
->
-> ⚠️ 重构进行中；旧独立容器 / Vercel 部署方式见文末[附录](#附录旧部署方式迁移中)。
+> iScholar v6.0 的部署形态是**全 Docker**：`web` + `backend` + `worker` + `postgres(pgvector)` + `redis` + `proxy(Caddy)`，数据存储在自有 PostgreSQL。
 
 ---
 
@@ -146,17 +144,5 @@ location / {
 后端自检：
 
 ```bash
-cd services/backend && ruff check && pytest
+cd services/backend && uv run ruff check && uv run pytest
 ```
-
----
-
-## 附录：旧部署方式（迁移中）
-
-重构前，iScholar 为**单 Next.js 应用**：
-
-- **Vercel（曾为推荐）**：`vercel.json` 配置 `/api/agents/*` 300s、`/api/mcp/*` 60s 超时。
-- **单容器自托管**：`output: "standalone"` 的独立 `Dockerfile`，`pnpm start`；科研数据存浏览器 IndexedDB，协作功能可选接 Supabase（Auth + PostgreSQL + RLS）。
-- 旧的 Supabase 发布步骤（执行 `supabase/migrations/*.sql`、配置 `NEXT_PUBLIC_SUPABASE_*` 与 `SUPABASE_SERVICE_ROLE_KEY`）已不再是目标；相关 code path 与文档正随 Stage 1/6 清理。
-
-这些方式仅作迁移期参考，新部署应使用 `docker-compose.yml` 全栈拓扑。
