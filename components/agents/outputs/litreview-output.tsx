@@ -17,7 +17,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useLatestAgentRun, bulkCreateBibItems } from "@/lib/local/hooks";
+import { useLatestAgentRun, bulkCreateBibItems } from "@/lib/hooks";
 import { type AgentStructuredOutput, type LitReviewOutput } from "@/lib/ai/parse-agent-output";
 import { EmptyState } from "./shared/empty-state";
 import { Badge } from "@/components/ui/badge";

@@ -17,7 +17,7 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { useLatestAgentRun } from "@/lib/local/hooks";
+import { useLatestAgentRun } from "@/lib/hooks";
 import { useAuditEntries } from "@/lib/client/hooks";
 import { type AgentStructuredOutput, type TopicOutput } from "@/lib/ai/parse-agent-output";
 import { EmptyState } from "./shared/empty-state";

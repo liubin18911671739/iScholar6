@@ -3,32 +3,18 @@
 import { createHmac } from "crypto";
 
 /**
- * Resolve the authenticated user id: Auth.js first, then the legacy Supabase
- * session in collaborative mode. Lazily imported so unit tests can load this
- * module without pulling next-auth (`next/server` does not resolve under Vitest).
+ * Resolve the authenticated Auth.js user id. Lazily imported so unit tests can
+ * load this module without pulling next-auth (`next/server` does not resolve
+ * under Vitest).
  */
 async function resolveAuthenticatedUserId(): Promise<string | null> {
   try {
     const { auth } = await import("@/lib/auth");
     const session = await auth();
-    if (session?.user?.id) return session.user.id;
+    return session?.user?.id ?? null;
   } catch {
-    // No Auth.js request context (tests, Edge, or collaborative-only mode).
+    return null;
   }
-  try {
-    const { isCollaborativeMode } = await import("@/lib/supabase/collaborative");
-    if (isCollaborativeMode()) {
-      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
-      const client = createSupabaseServerClient();
-      if (client) {
-        const { data: { user } } = await client.auth.getUser();
-        if (user?.id) return user.id;
-      }
-    }
-  } catch {
-    // Ignore Supabase resolution failures; caller treats null as unauthenticated.
-  }
-  return null;
 }
 
 /** Returns signed backend identity headers for the current authenticated user. */

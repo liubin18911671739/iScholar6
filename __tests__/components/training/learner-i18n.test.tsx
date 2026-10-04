@@ -9,30 +9,12 @@ import { createTranslator } from "next-intl";
 const originalCollaborativeMode = process.env.NEXT_PUBLIC_COLLABORATIVE_MODE;
 const originalFetch = globalThis.fetch;
 
-vi.mock("@/lib/local/hooks", () => ({
+vi.mock("@/lib/hooks", () => ({
   useLocalProjects: () => ({
     data: [{ id: "project-id", name: "Project" }],
     error: null,
     refetch: () => {},
   }),
-}));
-
-vi.mock("@/lib/local/hooks/training", () => ({
-  useTrainingTasks: () => ({ data: [], error: null, refetch: () => {} }),
-  useTrainingSubmissions: () => ({ data: [], error: null, refetch: () => {} }),
-  useEvidenceCards: () => ({ data: [], error: null, refetch: () => {} }),
-  createTrainingTask: vi.fn(async () => "task-id"),
-  upsertTrainingSubmission: vi.fn(async () => "submission-id"),
-  createEvidenceCard: vi.fn(async () => "evidence-id"),
-  updateEvidenceCard: vi.fn(async () => undefined),
-  recordAiConsent: vi.fn(async () => ({
-    id: "c1",
-    projectId: "p1",
-    externalServices: [],
-    redactionConfirmed: true,
-    consentedAt: new Date().toISOString(),
-    dataCategories: [],
-  })),
 }));
 
 describe("training learner i18n", () => {
@@ -46,8 +28,8 @@ describe("training learner i18n", () => {
             ok: true,
             data: [
               {
-                program_id: "11111111-1111-1111-1111-111111111111",
-                training_programs: { name: "春季训练营", status: "active" },
+                programId: "11111111-1111-1111-1111-111111111111",
+                program: { name: "春季训练营", status: "active" },
               },
             ],
             submissions: [],
@@ -55,8 +37,20 @@ describe("training learner i18n", () => {
           { status: 200 }
         );
       }
-      if (url.includes("/tasks") || url.includes("/progress")) {
-        return new Response(JSON.stringify({ ok: true, data: {} }), { status: 200 });
+      if (url.includes("/tasks")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            data: { configured: false, rows: [], catalogSize: 8, available: true, curriculum: [] },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/progress")) {
+        return new Response(
+          JSON.stringify({ ok: true, data: { scope: "self", tasks: [], completionRate: 0 } }),
+          { status: 200 }
+        );
       }
       return new Response(JSON.stringify({ ok: true }), { status: 200 });
     }) as typeof fetch;

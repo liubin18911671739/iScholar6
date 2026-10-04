@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { createTrainingReview, useReviewQueue } from "@/lib/local/hooks";
+import { listReviews, submitReview } from "@/lib/client/training";
 import { MVP_TRAINING_TASKS } from "@/lib/training/registry";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
 
@@ -66,6 +66,36 @@ type RemoteSubmission = {
   latest_review?: ReviewRow | null;
 };
 
+/** Map a backend camelCase review-queue row into the component's display shape. */
+function normalizeRemote(row: Record<string, unknown>): RemoteSubmission {
+  const reviews = (row.reviews as Array<Record<string, unknown>> | undefined) ?? [];
+  const latest = row.latestReview as Record<string, unknown> | null | undefined;
+  const toReview = (r: Record<string, unknown>): ReviewRow => ({
+    id: String(r.id),
+    decision: String(r.decision),
+    feedback: (r.feedback as string | null) ?? null,
+    score: (r.score as number | null) ?? null,
+    created_at: String(r.createdAt ?? ""),
+  });
+  return {
+    id: String(row.id),
+    task_id: String(row.taskId ?? ""),
+    task_title: (row.taskTitle as string | undefined) ?? undefined,
+    learner_id: String(row.learnerId ?? ""),
+    learner_display_name: (row.learnerDisplayName as string | null) ?? null,
+    answers: (row.answers as Record<string, string>) ?? {},
+    reflection: (row.reflection as string | null) ?? null,
+    status: String(row.status ?? "submitted"),
+    peer_status: (row.peerStatus as string | null) ?? null,
+    updated_at: String(row.updatedAt ?? ""),
+    wait_ms: (row.waitMs as number | undefined) ?? undefined,
+    claimed_by: (row.claimedBy as string | null) ?? null,
+    evidence_cards: (row.evidenceCards as EvidenceCard[] | undefined) ?? [],
+    training_reviews: reviews.map(toReview),
+    latest_review: latest ? toReview(latest) : null,
+  };
+}
+
 /** Prefilled feedback strings per review decision. */
 const FEEDBACK_TEMPLATES = {
   approved: "已通过。论证清晰，请继续保持证据与结论的对应关系。",
@@ -85,7 +115,6 @@ function formatWait(ms?: number): string {
 /** Staff/TA review queue for pending training submissions. */
 export function ReviewQueue() {
   const t = useTranslations("training.review");
-  const { data: queue, error: queueError, refetch: refetchQueue } = useReviewQueue();
   const collaborative = true;
 
   const [remoteQueue, setRemoteQueue] = useState<RemoteSubmission[]>([]);
@@ -108,26 +137,24 @@ export function ReviewQueue() {
     if (!collaborative) return;
     setRemoteQueueError("");
     setForbidden(false);
-    const params = new URLSearchParams({
-      status: statusFilter,
-      page: String(page),
-      pageSize: String(pageSize),
-      sort,
-    });
-    if (taskFilter) params.set("taskId", taskFilter);
-    if (peerStatusFilter) params.set("peerStatus", peerStatusFilter);
     try {
-      const res = await fetch(`/api/training/reviews?${params.toString()}`);
-      if (res.status === 403) {
+      const body = await listReviews({
+        status: statusFilter,
+        page,
+        pageSize,
+        sort,
+        ...(taskFilter ? { taskId: taskFilter } : {}),
+        ...(peerStatusFilter ? { peerStatus: peerStatusFilter } : {}),
+      });
+      setRemoteQueue((body.data ?? []).map((row) => normalizeRemote(row as unknown as Record<string, unknown>)));
+      setTotal(body.total ?? 0);
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status === 403) {
         setForbidden(true);
         setRemoteQueue([]);
         return;
       }
-      if (!res.ok) throw new Error("LOAD_FAILED");
-      const json = await res.json();
-      setRemoteQueue(json.data ?? []);
-      setTotal(json.total ?? 0);
-    } catch {
       setRemoteQueue([]);
       setRemoteQueueError(t("loadError"));
     }
@@ -144,44 +171,23 @@ export function ReviewQueue() {
   ) {
     setBusyId(submissionId);
     try {
-      if (collaborative) {
-        const scoreRaw = scores[submissionId];
-        const score =
-          scoreRaw != null && scoreRaw !== ""
-            ? Number(scoreRaw)
-            : decision === "approved"
-              ? 100
-              : undefined;
-        const res = await fetch("/api/training/reviews", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            submissionId,
-            decision,
-            feedback: feedback[submissionId],
-            score: Number.isFinite(score) ? score : undefined,
-          }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          toast.error(String(json.error ?? t("reviewFailed")));
-          return;
-        }
-        toast.success(t("reviewSuccess"));
-        await loadRemote();
-        return;
-      }
-      await createTrainingReview({
+      const scoreRaw = scores[submissionId];
+      const score =
+        scoreRaw != null && scoreRaw !== ""
+          ? Number(scoreRaw)
+          : decision === "approved"
+            ? 100
+            : undefined;
+      await submitReview({
         submissionId,
-        reviewer: "local-librarian",
         decision,
         feedback: feedback[submissionId],
-        score: decision === "approved" ? 100 : undefined,
+        score: typeof score === "number" && Number.isFinite(score) ? score : undefined,
       });
       toast.success(t("reviewSuccess"));
-      refetchQueue();
-    } catch {
-      toast.error(t("reviewFailed"));
+      await loadRemote();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("reviewFailed"));
     } finally {
       setBusyId(null);
     }
@@ -190,18 +196,13 @@ export function ReviewQueue() {
   // Claim or release a submission for the current reviewer.
   async function claim(submissionId: string, claimValue: boolean) {
     if (!collaborative) return;
-    const res = await fetch("/api/training/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ submissionId, claim: claimValue }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      toast.error(String(json.error ?? t("claimFailed")));
-      return;
+    try {
+      await submitReview({ submissionId, claim: claimValue });
+      toast.success(claimValue ? t("claimed") : t("unclaimed"));
+      await loadRemote();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("claimFailed"));
     }
-    toast.success(claimValue ? t("claimed") : t("unclaimed"));
-    await loadRemote();
   }
 
   // Insert a canned feedback template for a submission.
@@ -215,47 +216,26 @@ export function ReviewQueue() {
     }));
   }
 
-  /** Local-mode queue item shape. */
-  type LocalItem = {
-    submission: { id: string; answers: Record<string, string>; reflection?: string };
-    task?: { title?: string };
-    evidence: EvidenceCard[];
-  };
+  // Normalize remote queue rows into a common display shape.
+  const items = useMemo(
+    () =>
+      remoteQueue.map((row) => ({
+        id: row.id,
+        title: row.task_title ?? row.task_id,
+        answers: row.answers ?? {},
+        reflection: row.reflection,
+        evidence: row.evidence_cards ?? [],
+        waitLabel: formatWait(row.wait_ms),
+        status: row.status,
+        peerStatus: row.peer_status ?? null,
+        learnerLabel: row.learner_display_name || row.learner_id.slice(0, 8) + "…",
+        claimed: Boolean(row.claimed_by),
+        remote: true as const,
+      })),
+    [remoteQueue]
+  );
 
-  // Normalize local or remote queue rows into a common display shape.
-  const items = useMemo(() => {
-    if (!collaborative) {
-      const localItems = (queue ?? []) as LocalItem[];
-      return localItems.map((item) => ({
-        id: item.submission.id,
-        title: item.task?.title ?? t("taskFallback"),
-        answers: item.submission.answers,
-        reflection: item.submission.reflection,
-        evidence: item.evidence ?? [],
-        waitLabel: "—",
-        status: "submitted",
-        peerStatus: null as string | null,
-        learnerLabel: "—",
-        claimed: false,
-        remote: false as const,
-      }));
-    }
-    return remoteQueue.map((row) => ({
-      id: row.id,
-      title: row.task_title ?? row.task_id,
-      answers: row.answers ?? {},
-      reflection: row.reflection,
-      evidence: row.evidence_cards ?? [],
-      waitLabel: formatWait(row.wait_ms),
-      status: row.status,
-      peerStatus: row.peer_status ?? null,
-      learnerLabel: row.learner_display_name || row.learner_id.slice(0, 8) + "…",
-      claimed: Boolean(row.claimed_by),
-      remote: true as const,
-    }));
-  }, [collaborative, queue, remoteQueue, t]);
-
-  const loadError = collaborative ? remoteQueueError : queueError;
+  const loadError = remoteQueueError;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   if (forbidden) {
@@ -355,7 +335,7 @@ export function ReviewQueue() {
 
       <RemoteLoadError
         error={loadError || null}
-        onRetry={() => (collaborative ? void loadRemote() : refetchQueue())}
+        onRetry={() => void loadRemote()}
       />
 
       {!loadError && items.length === 0 && (

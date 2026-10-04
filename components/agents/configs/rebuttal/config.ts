@@ -12,7 +12,7 @@
  * @date 2026-09-16
  */
 
-import { createManuscript, createSubmission, createReviewRound, createRebuttalItem, updateRebuttalItem } from "@/lib/local/hooks";
+import { createManuscript, createSubmission, createReviewRound, createRebuttalItem, updateRebuttalItem } from "@/lib/hooks";
 import type { AgentPageConfig } from "../../agent-page-template";
 import type { RebuttalOutput } from "@/lib/ai/parse-agent-output";
 import { RebuttalOutputPanel } from "@/components/agents/outputs/rebuttal-output";

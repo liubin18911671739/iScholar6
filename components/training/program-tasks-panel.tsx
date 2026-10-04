@@ -24,6 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MVP_TRAINING_TASKS } from "@/lib/training/registry";
+import {
+  getProgramProgress,
+  getProgramTasks,
+  nudge,
+  replaceProgramTasks,
+} from "@/lib/client/training";
 
 /** Editable per-task curriculum draft row. */
 type TaskDraft = {
@@ -80,39 +86,31 @@ export function ProgramTasksPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, progressRes] = await Promise.all([
-        fetch(`/api/training/programs/${programId}/tasks`),
-        fetch(`/api/training/programs/${programId}/progress`),
+      const [tasks, progress] = await Promise.all([
+        getProgramTasks(programId).catch(() => null),
+        getProgramProgress(programId).catch(() => null),
       ]);
-      if (tasksRes.ok) {
-        const json = await tasksRes.json();
-        const configured = (json.data?.rows ?? []) as Array<{
-          task_id: string;
-          ordinal: number;
-          due_at?: string | null;
-          required?: boolean;
-          requires_review_override?: boolean | null;
-        }>;
-        const byId = new Map(configured.map((r) => [r.task_id, r]));
+      if (tasks) {
+        const configured = tasks.rows ?? [];
+        const byId = new Map(configured.map((row) => [row.taskId, row]));
         const next = MVP_TRAINING_TASKS.map((task, index) => {
           const row = byId.get(task.id);
           return {
             taskId: task.id,
             enabled: configured.length === 0 ? true : Boolean(row),
             ordinal: row?.ordinal ?? index,
-            dueAt: toLocalInputValue(row?.due_at),
+            dueAt: toLocalInputValue(row?.dueAt),
             required: row?.required ?? true,
             requiresReviewOverride:
-              row?.requires_review_override === undefined
+              row?.requiresReviewOverride === undefined
                 ? null
-                : row.requires_review_override,
+                : row.requiresReviewOverride,
           } satisfies TaskDraft;
         });
         setDrafts(next.sort((a, b) => a.ordinal - b.ordinal));
       }
-      if (progressRes.ok) {
-        const json = await progressRes.json();
-        setMembers(json.data?.members ?? []);
+      if (progress) {
+        setMembers((progress.members ?? []) as MemberProgress[]);
       }
     } finally {
       setLoading(false);
@@ -142,14 +140,10 @@ export function ProgramTasksPanel({
         required: d.required,
         requiresReviewOverride: d.requiresReviewOverride,
       }));
-    const res = await fetch(`/api/training/programs/${programId}/tasks`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tasks }),
-    });
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
-      toast.error(String(json.error ?? t("saveFailed")));
+    try {
+      await replaceProgramTasks(programId, tasks);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("saveFailed"));
       return;
     }
     toast.success(t("tasksSaved"));
@@ -158,12 +152,9 @@ export function ProgramTasksPanel({
 
   // Send a reminder nudge to all active members.
   async function nudgeAll() {
-    const res = await fetch(`/api/training/programs/${programId}/nudge`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allActive: true }),
-    });
-    if (!res.ok) {
+    try {
+      await nudge(programId, { allActive: true });
+    } catch {
       toast.error(t("nudgeFailed"));
       return;
     }

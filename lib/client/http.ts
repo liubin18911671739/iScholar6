@@ -31,8 +31,8 @@ export function qs(params: Record<string, string | number | boolean | undefined>
   return encoded ? `?${encoded}` : "";
 }
 
-/** Fetch a backend envelope, throwing `BackendApiError` on failure. */
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** Fetch and validate a backend envelope, returning the raw payload. */
+async function fetchEnvelope<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const response = await fetch(path, {
     ...init,
     headers: {
@@ -43,11 +43,31 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const payload = (await response.json().catch(() => null)) as Envelope<T> | null;
   if (!response.ok || !payload?.ok) {
-    throw new BackendApiError(
-      payload?.error ?? `Request failed: ${response.status}`,
-      response.status,
-      payload?.error
-    );
+    // FastAPI raises `{ detail: "<CODE>" }`; normalize it to the `error` field.
+    const detail = (payload as { detail?: unknown } | null)?.detail;
+    const code = payload?.error ?? (typeof detail === "string" ? detail : undefined);
+    throw new BackendApiError(code ?? `Request failed: ${response.status}`, response.status, code);
   }
+  return payload;
+}
+
+/** Fetch a backend envelope, returning only its `data` field. */
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const payload = await fetchEnvelope<T>(path, init);
   return payload.data as T;
+}
+
+/** Fetch a backend envelope and return the full payload (for extra top-level fields). */
+export async function requestEnvelope<T>(path: string, init?: RequestInit): Promise<T> {
+  const payload = (await fetchEnvelope<unknown>(path, init)) as Record<string, unknown>;
+  delete payload.ok;
+  delete payload.error;
+  return payload as T;
+}
+
+/** Fetch a raw (non-envelope) response, e.g. CSV exports. */
+export async function requestRaw(path: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(path, { ...init, cache: "no-store" });
+  if (!response.ok) throw new BackendApiError(`Request failed: ${response.status}`, response.status);
+  return response;
 }

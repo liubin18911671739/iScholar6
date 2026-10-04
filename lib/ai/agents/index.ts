@@ -4,7 +4,8 @@
  * Functionality:
  * - Resolves prompts (plugin packs + locale directive) and dispatches a durable
  *   backend agent run through the signed BFF.
- * - Polls the run and streams the resulting artifact text back to the caller.
+ * - Streams model text from the run's SSE `message.delta` events, polling the
+ *   run for completion and the authoritative artifact text.
  * - Writes a best-effort hash-chained audit entry after completion.
  *
  * Notes:
@@ -21,10 +22,10 @@ import { nanoid } from "nanoid";
 import { type AgentId } from "./registry";
 import { writeAuditEntry, hashContent } from "@/lib/audit/ledger";
 import { useLocaleStore } from "@/lib/stores/locale-store";
-import { getRecentAiConsent } from "@/lib/local/hooks/training";
+import { getRecentAiConsent } from "@/lib/client/hooks/consent";
 import type { LocalAiConsent } from "@/lib/types/domain";
 import { resolveSystemPrompt, resolveUserPrompt } from "@/lib/plugins/prompt-resolve";
-import { createRun, createThread, getRun, type AgentRunDetail } from "@/lib/client/agents";
+import { createRun, createThread, getRun, subscribeRunEvents, type AgentRunDetail } from "@/lib/client/agents";
 
 const POLL_INTERVAL_MS = 700;
 const POLL_TIMEOUT_MS = 120_000;
@@ -39,6 +40,8 @@ export interface RunAgentStreamParams {
   mode?: "coach" | "production";
   trainingTaskId?: string;
   programId?: string;
+  /** Reuse an existing thread for multi-turn conversations (coach/Hermes). */
+  threadId?: string;
   onChunk: (chunk: string) => void;
   onComplete: (runId: string) => void;
   onError: (error: Error) => void;
@@ -77,6 +80,7 @@ export async function runAgentStream({
   mode,
   trainingTaskId,
   programId,
+  threadId,
   onChunk,
   onComplete,
   onError,
@@ -110,8 +114,9 @@ export async function runAgentStream({
     effectiveUserPrompt = effectiveUserPrompt + "\n\n请使用中文回复。";
   }
 
+  let unsubscribe: () => void = () => {};
   try {
-    const thread = await createThread(projectId, `agent:${agentId}`);
+    const thread = threadId ? { id: threadId } : await createThread(projectId, `agent:${agentId}`);
     const created = await createRun(thread.id, {
       agent: agentId,
       goal: effectiveUserPrompt.slice(0, 20_000) || `agent:${agentId}`,
@@ -126,12 +131,27 @@ export async function runAgentStream({
     });
     const runId = created.id;
 
+    // Stream incremental model text; polling below finalizes the run.
+    let streamed = "";
+    unsubscribe = subscribeRunEvents(runId, {
+      onDelta: (text) => {
+        if (!text) return;
+        streamed += text;
+        onChunk(text);
+      },
+    });
+
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     while (Date.now() < deadline) {
       const detail = await getRun(runId);
       const extracted = extractRunText(detail);
       if (extracted) {
-        onChunk(extracted.text);
+        // Emit whatever has not already arrived over SSE (dedupe the prefix).
+        if (!streamed) {
+          onChunk(extracted.text);
+        } else if (extracted.text.startsWith(streamed) && extracted.text.length > streamed.length) {
+          onChunk(extracted.text.slice(streamed.length));
+        }
         onComplete(runId);
 
         // Best-effort audit write; never fail a completed run because of it.
@@ -169,5 +189,7 @@ export async function runAgentStream({
         ? JSON.stringify(error)
         : String(error);
     onError(new Error(message));
+  } finally {
+    unsubscribe();
   }
 }

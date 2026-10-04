@@ -41,7 +41,7 @@ import {
   Check,
   Loader2,
 } from "lucide-react";
-import { createProject } from "@/lib/local/hooks";
+import { createProject } from "@/lib/hooks";
 import { WizardStep } from "./wizard-step";
 
 // ── Types ────────────────────────────────────────────────────────

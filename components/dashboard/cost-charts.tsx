@@ -16,7 +16,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { type CostSummary } from "@/lib/local/hooks";
+import { type CostSummary } from "@/lib/hooks";
 import { formatCostCents, formatTokenCount } from "@/lib/ai/pricing";
 import { getAgentMeta } from "@/lib/ai/agents/registry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

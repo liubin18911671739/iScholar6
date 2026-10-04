@@ -10,7 +10,7 @@
  * @date 2026-09-16
  */
 
-import { createExperiment } from "@/lib/local/hooks";
+import { createExperiment } from "@/lib/hooks";
 import type { AgentPageConfig } from "../../agent-page-template";
 import { DataOutputPanel } from "@/components/agents/outputs/data-output";
 import { DataInputs } from "./DataInputs";

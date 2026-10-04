@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useLocalBibItems, deleteBibItem } from "@/lib/local/hooks";
+import { useLocalBibItems, deleteBibItem } from "@/lib/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

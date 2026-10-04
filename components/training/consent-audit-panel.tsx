@@ -21,18 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
-
-/** A single consent audit record. */
-type ConsentRow = {
-  id: string;
-  userId: string;
-  displayName?: string | null;
-  trainingTaskId?: string | null;
-  purpose: string;
-  redactionConfirmed: boolean;
-  sensitiveScan?: { total?: number; byCategory?: Record<string, number> };
-  consentedAt: string;
-};
+import { listConsents, type ConsentRow } from "@/lib/client/training";
 
 /** Aggregate consent statistics for a program. */
 type Stats = {
@@ -55,16 +44,15 @@ export function ConsentAuditPanel({ programId }: { programId: string }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(
-        `/api/training/programs/${programId}/consents?purpose=training_submit&pageSize=15`
-      );
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(String(json.error ?? "LOAD_FAILED"));
-      }
-      const json = await res.json();
-      setRows(json.data ?? []);
-      setStats(json.stats ?? null);
+      const body = await listConsents(programId, { purpose: "training_submit", pageSize: 15 });
+      const consents = body.consents ?? [];
+      setRows(consents);
+      setStats({
+        total: body.stats?.total ?? consents.length,
+        trainingSubmit: consents.filter((row) => row.purpose === "training_submit").length,
+        redactionConfirmed: body.stats?.redactionConfirmed ?? 0,
+        hadSensitiveAtScan: consents.filter((row) => Number(row.sensitiveScan?.total ?? 0) > 0).length,
+      });
     } catch (e) {
       setRows([]);
       setStats(null);

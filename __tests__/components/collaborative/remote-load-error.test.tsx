@@ -13,7 +13,7 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-vi.mock("@/lib/local/hooks", () => ({
+vi.mock("@/lib/hooks", () => ({
   useLocalProjects: () => mockUseLocalProjects(),
 }));
 

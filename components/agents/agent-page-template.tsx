@@ -36,8 +36,8 @@ import {
   createManuscript,
   createManuscriptBlock,
   getLatestAgentRunInputs,
-} from "@/lib/local/hooks";
-import { recordAiConsent } from "@/lib/local/hooks";
+} from "@/lib/hooks";
+import { recordAiConsent } from "@/lib/hooks";
 import {
   containsSensitiveContent,
   joinTextFields,

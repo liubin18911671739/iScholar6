@@ -21,14 +21,10 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useLocalProjects } from "@/lib/local/hooks";
-import {
-  useTrainingTasks,
-  createTrainingTask,
-} from "@/lib/local/hooks/training";
+import { useLocalProjects } from "@/lib/hooks";
 import { MVP_TRAINING_TASKS } from "@/lib/training/registry";
 import { RemoteLoadError, firstRemoteError } from "@/components/collaborative/remote-load-error";
-import { getCollaborativeAuthHeaders } from "@/lib/supabase/collaborative";
+import { getMyTraining, getProgramProgress, getProgramTasks } from "@/lib/client/training";
 import { PeerReviewQueue } from "@/components/training/peer-queue";
 import { CoachWorkspace } from "@/components/training/coach-workspace";
 
@@ -79,8 +75,7 @@ export function MvpTraining() {
     projectsQuery;
   const projects = Array.isArray(projectsData) ? projectsData : [];
   const projectId = projects[0]?.id ?? "";
-  const tasksQuery = useTrainingTasks(projectId) ?? EMPTY_LIST_QUERY;
-  const { data: tasks, error: tasksError, refetch: refetchTasks } = tasksQuery;
+  const [reloadKey, setReloadKey] = useState(0);
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [remoteEnrollment, setRemoteEnrollment] = useState<{
     program_id: string;
@@ -99,25 +94,22 @@ export function MvpTraining() {
   const [completionRate, setCompletionRate] = useState<number | null>(null);
   const collaborative = true;
 
-  // Merge registry task definitions with stored status, filtered to the enrolled curriculum.
+  // Merge registry task definitions with backend progress, filtered to the enrolled curriculum.
   const displayTasks = useMemo(() => {
-    const all = MVP_TRAINING_TASKS.map((def) => {
-      const stored = tasks?.find((t0) => t0.id === def.id);
-      return {
-        id: def.id,
-        title: def.title,
-        description: def.description,
-        agent: def.agent,
-        dimension: def.dimension,
-        steps: def.steps,
-        requiresReview: def.requiresReview,
-        status: stored?.status ?? ("not_started" as const),
-      };
-    });
+    const all = MVP_TRAINING_TASKS.map((def) => ({
+      id: def.id,
+      title: def.title,
+      description: def.description,
+      agent: def.agent,
+      dimension: def.dimension,
+      steps: def.steps,
+      requiresReview: def.requiresReview,
+      status: taskProgress[def.id]?.status ?? ("not_started" as const),
+    }));
     if (!curriculumTaskIds || curriculumTaskIds.length === 0) return all;
     const filtered = all.filter((t0) => curriculumTaskIds.includes(t0.id));
     return filtered.length > 0 ? filtered : all;
-  }, [tasks, curriculumTaskIds]);
+  }, [taskProgress, curriculumTaskIds]);
 
   const selectedTask =
     displayTasks.find((task) => task.id === selectedTaskId) ??
@@ -125,7 +117,7 @@ export function MvpTraining() {
     null;
   const effectiveTaskId = selectedTask?.id ?? "";
 
-  const remoteDataError = firstRemoteError(projectsError, tasksError);
+  const remoteDataError = firstRemoteError(projectsError);
 
   // Load enrollment, curriculum, and progress, aborting the request after a timeout.
   useEffect(() => {
@@ -135,45 +127,37 @@ export function MvpTraining() {
     const timeout = window.setTimeout(() => controller.abort(), 12_000);
     (async () => {
       try {
-        const res = await fetch("/api/training/me?include=all", {
-          headers: await getCollaborativeAuthHeaders(),
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("LOAD_FAILED");
-        const json = await res.json();
+        const me = await getMyTraining("all");
         if (cancelled) return;
-        const enrollment = json.data?.[0] ?? null;
-        setRemoteEnrollment(enrollment);
-        setRemoteSubmissions(json.submissions ?? []);
+        const enrollment = me.enrollments?.[0] ?? null;
+        setRemoteEnrollment(
+          enrollment
+            ? {
+                program_id: enrollment.programId,
+                training_programs: enrollment.program
+                  ? { name: enrollment.program.name, status: enrollment.program.status }
+                  : undefined,
+              }
+            : null
+        );
+        setRemoteSubmissions(
+          (me.submissions ?? []).map((s) => ({ id: s.id, task_id: s.taskId, status: s.status }))
+        );
         setRemoteEnrollmentError("");
 
-        const programId = enrollment?.program_id as string | undefined;
+        const programId = enrollment?.programId;
         if (!programId) return;
 
         try {
-          const [tasksRes, progressRes] = await Promise.all([
-            fetch(`/api/training/programs/${programId}/tasks`, {
-              signal: controller.signal,
-            }),
-            fetch(`/api/training/programs/${programId}/progress`, {
-              signal: controller.signal,
-            }),
+          const [tasks, progress] = await Promise.all([
+            getProgramTasks(programId).catch(() => null),
+            getProgramProgress(programId).catch(() => null),
           ]);
           if (cancelled) return;
-          if (tasksRes.ok) {
-            const tasksJson = await tasksRes.json();
-            const curriculum = (tasksJson.data?.curriculum ?? []) as Array<{
-              taskId: string;
-            }>;
-            setCurriculumTaskIds(
-              curriculum.length > 0 ? curriculum.map((c) => c.taskId) : null
-            );
-          } else {
-            setCurriculumTaskIds(null);
-          }
-          if (progressRes.ok) {
-            const progressJson = await progressRes.json();
-            const selfTasks = (progressJson.data?.tasks ?? []) as Array<{
+          const curriculum = tasks?.curriculum ?? [];
+          setCurriculumTaskIds(curriculum.length > 0 ? curriculum.map((c) => c.taskId) : null);
+          if (progress) {
+            const selfTasks = (progress.tasks ?? []) as Array<{
               taskId: string;
               status: string;
               overdue: boolean;
@@ -183,11 +167,7 @@ export function MvpTraining() {
               map[task.taskId] = { status: task.status, overdue: task.overdue };
             }
             setTaskProgress(map);
-            setCompletionRate(
-              typeof progressJson.data?.completionRate === "number"
-                ? progressJson.data.completionRate
-                : null
-            );
+            setCompletionRate(typeof progress.completionRate === "number" ? progress.completionRate : null);
           }
         } catch {
           if (!cancelled) setCurriculumTaskIds(null);
@@ -204,7 +184,7 @@ export function MvpTraining() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [collaborative, t]);
+  }, [collaborative, t, reloadKey]);
 
   // Default to the first task when none is selected yet.
   useEffect(() => {
@@ -212,38 +192,6 @@ export function MvpTraining() {
       setSelectedTaskId(displayTasks[0].id);
     }
   }, [displayTasks, selectedTaskId]);
-
-  // Backfill local task records for any registry task not yet stored.
-  useEffect(() => {
-    if (!projectId) return;
-    let cancelled = false;
-    (async () => {
-      for (const definition of MVP_TRAINING_TASKS) {
-        if (cancelled) return;
-        const hasLocal = tasks?.some((task) => task.id === definition.id);
-        if (!hasLocal) {
-          try {
-            await createTrainingTask({
-              id: definition.id,
-              projectId,
-              title: definition.title,
-              description: definition.description,
-              agent: definition.agent,
-              dimension: definition.dimension,
-              steps: definition.steps,
-              requiresReview: definition.requiresReview,
-            });
-          } catch {
-            /* ignore */
-          }
-        }
-      }
-      if (!cancelled) void refetchTasks();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, tasks, refetchTasks]);
 
   if (!projectId && !collaborative) {
     return (
@@ -272,10 +220,10 @@ export function MvpTraining() {
           error={remoteEnrollmentError || remoteDataError}
           onRetry={
             remoteDataError
-              ? () => {
-                  refetchProjects();
-                  refetchTasks();
-                }
+                ? () => {
+                    refetchProjects();
+                    setReloadKey((key) => key + 1);
+                  }
               : undefined
           }
         />

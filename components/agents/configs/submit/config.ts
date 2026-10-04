@@ -12,7 +12,7 @@
  * @date 2026-09-16
  */
 
-import { createManuscript, createSubmission } from "@/lib/local/hooks";
+import { createManuscript, createSubmission } from "@/lib/hooks";
 import type { AgentPageConfig } from "../../agent-page-template";
 import type { SubmitOutput } from "@/lib/ai/parse-agent-output";
 import { SubmitOutputPanel } from "@/components/agents/outputs/submit-output";

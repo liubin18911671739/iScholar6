@@ -28,9 +28,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useTrainingReportData } from "@/lib/local/hooks";
 import { buildDimensionReport, TRAINING_DIMENSIONS } from "@/lib/training/scoring";
-import { getCollaborativeAuthHeaders, isCollaborativeMode } from "@/lib/supabase/collaborative";
+import type { LocalTrainingSubmission } from "@/lib/types/domain";
+import { getMyTraining } from "@/lib/client/training";
 import { MVP_TRAINING_TASKS } from "@/lib/training/registry";
 
 /** A remote review record with decision, feedback, and score. */
@@ -55,22 +55,32 @@ type RemoteSubmission = {
 /** Personal training report with dimension scores, radar, table, and feedback. */
 export function TrainingReport({ projectId }: { projectId: string }) {
   const t = useTranslations("training.report");
-  const data = useTrainingReportData(projectId);
-  const collaborative = isCollaborativeMode();
   const [remoteSubs, setRemoteSubs] = useState<RemoteSubmission[]>([]);
 
-  // Fetch remote submissions/reviews when running in collaborative mode.
+  // Fetch the learner's submissions/reviews from the backend.
   useEffect(() => {
-    if (!collaborative) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/training/me?include=all", {
-          headers: await getCollaborativeAuthHeaders(),
+        const me = await getMyTraining("all");
+        if (cancelled) return;
+        const toReview = (r: { decision: string; feedback?: string | null; score?: number | null; createdAt: string }): RemoteReview => ({
+          decision: r.decision,
+          feedback: r.feedback ?? null,
+          score: r.score ?? null,
+          created_at: r.createdAt,
         });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled) setRemoteSubs(json.submissions ?? []);
+        setRemoteSubs(
+          (me.submissions ?? []).map((s) => ({
+            id: s.id,
+            task_id: s.taskId,
+            status: s.status,
+            answers: s.answers as Record<string, string> | undefined,
+            reflection: s.reflection ?? null,
+            latest_review: s.latestReview ? toReview(s.latestReview) : null,
+            training_reviews: (s.reviews ?? []).map(toReview),
+          }))
+        );
       } catch {
         if (!cancelled) setRemoteSubs([]);
       }
@@ -78,19 +88,28 @@ export function TrainingReport({ projectId }: { projectId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [collaborative]);
+  }, []);
 
-  // Aggregate local task/submission pairs into per-dimension scores.
-  const report = useMemo(() => {
-    if (!data) return undefined;
-    return buildDimensionReport(
-      data.map(({ task, submission }) => ({
-        dimension: task.dimension,
-        stepCount: task.steps.length,
-        submission,
-      }))
-    );
-  }, [data]);
+  // Aggregate backend submissions into per-dimension scores.
+  const report = useMemo(
+    () =>
+      buildDimensionReport(
+        MVP_TRAINING_TASKS.map((task) => {
+          const sub = remoteSubs.find((s) => s.task_id === task.id);
+          const submission = sub
+            ? ({
+                id: sub.id,
+                taskId: task.id,
+                status: sub.status,
+                answers: sub.answers ?? {},
+                reflection: sub.reflection ?? undefined,
+              } as unknown as LocalTrainingSubmission)
+            : undefined;
+          return { dimension: task.dimension, stepCount: task.steps.length, submission };
+        })
+      ),
+    [remoteSubs]
+  );
 
   // Map dimension scores into radar chart points.
   const radarData = useMemo(
@@ -102,10 +121,10 @@ export function TrainingReport({ projectId }: { projectId: string }) {
     [report]
   );
 
-  // Build task rows from remote reviews when available, otherwise from local data.
-  const taskRows = useMemo(() => {
-    if (collaborative && remoteSubs.length > 0) {
-      return MVP_TRAINING_TASKS.map((task) => {
+  // Build task rows from backend submissions/reviews.
+  const taskRows = useMemo(
+    () =>
+      MVP_TRAINING_TASKS.map((task) => {
         const sub = remoteSubs.find((s) => s.task_id === task.id);
         const review = sub?.latest_review;
         return {
@@ -117,18 +136,9 @@ export function TrainingReport({ projectId }: { projectId: string }) {
           feedback: review?.feedback ?? null,
           feedbackAt: review?.created_at ?? null,
         };
-      });
-    }
-    return (data ?? []).map(({ task, submission }) => ({
-      taskId: task.id,
-      title: task.title,
-      status: submission?.status ?? "not_started",
-      score: null as number | null,
-      decision: null as string | null,
-      feedback: null as string | null,
-      feedbackAt: null as string | null,
-    }));
-  }, [collaborative, data, remoteSubs]);
+      }),
+    [remoteSubs]
+  );
 
   // Take the five most recent feedback entries by timestamp.
   const recentFeedback = taskRows

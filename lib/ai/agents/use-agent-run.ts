@@ -23,7 +23,6 @@ import { getAgentMeta, isBuiltInAgent, type AgentId, type BuiltInAgentId } from 
 import { parseAgentOutput, type AgentStructuredOutput } from "@/lib/ai/parse-agent-output";
 import type { LocalAiConsent } from "@/lib/types/domain";
 import { writeAuditEntry } from "@/lib/audit/ledger";
-import { upsertAgentRun, updateAgentRunStatus } from "@/lib/local/hooks";
 import { latestApprovedUsage, reviewLatestArtifact } from "@/lib/client/agents";
 import { getPluginAgent } from "@/lib/plugins/registry";
 import type { AgentStatus } from "@/components/agents/agent-workspace";
@@ -127,7 +126,6 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
       setResults("");
       setParsedResults(null);
       setErrorMessage(null);
-      const startedAt = new Date().toISOString();
 
       // Calibrate the progress bar with the actual tokenOut from the
       // previous approved run for this agent+project (if any).
@@ -168,26 +166,13 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
           setProgress(100);
           setStatus("needs_review");
 
-          // Parse structured output and mirror the run locally so output panels
-          // and the audit ledger can resolve it by the backend run id.
+          // Parse structured output from the accumulated text; the backend owns
+          // the durable run and its artifact.
           setResults((currentResults) => {
             const parsed = parseAgentOutput(agentId, currentResults);
             if (parsed) {
               setParsedResults(parsed);
             }
-            void upsertAgentRun({
-              id,
-              projectId,
-              agent: agentId,
-              status: "needs_review",
-              inputs: input,
-              outputs: parsed ? { structured: parsed, text: currentResults } : { text: currentResults },
-              startedAt,
-              endedAt: new Date().toISOString(),
-              mode: trainingContext.mode,
-              trainingTaskId: trainingContext.trainingTaskId,
-              consentId: consent?.id,
-            }).catch(() => {});
             return currentResults;
           });
         },
@@ -215,7 +200,6 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     if (runId) {
       try {
         await reviewLatestArtifact(runId, "approved");
-        await updateAgentRunStatus(runId, "approved");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,
@@ -234,7 +218,6 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     if (runId) {
       try {
         await reviewLatestArtifact(runId, "rejected");
-        await updateAgentRunStatus(runId, "rejected");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,
@@ -253,7 +236,6 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     if (runId) {
       try {
         await reviewLatestArtifact(runId, "applied");
-        await updateAgentRunStatus(runId, "applied");
         await writeAuditEntry({
           projectId,
           agentRunId: runId,

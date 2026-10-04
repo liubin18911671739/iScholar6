@@ -18,7 +18,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { format } from "date-fns";
-import { useBlockVersions, rollbackToVersion } from "@/lib/local/hooks";
+import { useBlockVersions, rollbackToVersion } from "@/lib/hooks";
 import { DiffViewer } from "./diff-viewer";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";

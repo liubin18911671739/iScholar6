@@ -7,7 +7,7 @@
  *   layers can depend on it while the migration completes.
  *
  * Notes:
- * - Formerly declared in `lib/local/db.ts`; that module now re-exports these.
+ * - Neutral domain types shared by the backend client layer.
  *
  * @author mrpi
  * @date 2026-09-28

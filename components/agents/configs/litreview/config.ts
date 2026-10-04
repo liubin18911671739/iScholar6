@@ -12,7 +12,7 @@
 
 import type { AgentPageConfig } from "../../agent-page-template";
 import type { LitReviewOutput } from "@/lib/ai/parse-agent-output";
-import { bulkCreateBibItems } from "@/lib/local/hooks";
+import { bulkCreateBibItems } from "@/lib/hooks";
 import { LitReviewOutputPanel } from "@/components/agents/outputs/litreview-output";
 import { LitReviewInputs } from "./LitReviewInputs";
 import { LitReviewModuleContent } from "./LitReviewModuleContent";

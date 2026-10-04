@@ -3,8 +3,8 @@
  *
  * Functionality:
  * - Aggregates the React Query hooks that talk to `/api/data/*`.
- * - Exposes the same names as the legacy `lib/local/hooks/*` research modules so the
- *   resolver barrel can switch implementations behind `NEXT_PUBLIC_DATA_BACKEND`.
+ * - Exposes the same names as the historical `lib/local/hooks/*` research modules;
+ *   `lib/hooks.ts` re-exports this barrel as the single import surface.
  *
  * @author mrpi
  * @date 2026-09-27
@@ -43,3 +43,30 @@ export {
 } from "./rebuttal-items";
 export { useLocalTasks, createTask, updateTask, deleteTask } from "./tasks";
 export { useAuditEntries } from "./audit";
+export {
+  useLocalAgentRuns,
+  useLocalAllAgentRuns,
+  useLatestAgentRun,
+  useWorkflowProgress,
+  getLatestApprovedRun,
+  getLatestAgentRunInputs,
+  listAllRuns,
+  toLocalRun,
+} from "./agent-runs";
+export { useCostSummary, type CostSummary } from "./cost";
+export { recordAiConsent, getRecentAiConsent, hasRecentAiConsent } from "./consent";
+export {
+  invalidateTrainingQueries,
+  useMyTraining,
+  useTrainingPrograms,
+  useProgramTasks,
+  useProgramProgress,
+  useClassReport,
+  useReviewQueue,
+  usePeerQueue,
+  useAnalyticsDashboard,
+  useDueCalendar,
+  useConsentAudit,
+  useTaskPacks,
+  useLmsLink,
+} from "./training";

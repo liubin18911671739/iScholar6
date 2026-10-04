@@ -43,10 +43,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/projects/test-proj/topic",
 }));
 
-vi.mock("@/lib/supabase/browser", () => ({
-  createSupabaseBrowserClient: () => null,
-}));
-
 vi.mock("lucide-react", () => ({
   Menu: () => React.createElement("span", { "data-testid": "icon-menu" }),
   User: () => React.createElement("span", { "data-testid": "icon-user" }),

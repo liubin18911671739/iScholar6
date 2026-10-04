@@ -35,7 +35,8 @@ import {
 } from "lucide-react";
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { AGENT_META } from "@/lib/ai/agents/registry";
-import { recordAiConsent } from "@/lib/local/hooks";
+import { recordAiConsent } from "@/lib/hooks";
+import { runHermes } from "@/lib/client/agents";
 import { containsSensitiveContent } from "@/lib/privacy/sensitive-content";
 import { getStage, primaryStageForAgent } from "./stages";
 import { MarkdownText } from "@/components/ui/markdown-text";
@@ -151,71 +152,39 @@ export function ModuleAssistant({
         externalServices: ["DeepSeek"],
         redactionConfirmed: true,
       });
-      const response = await fetch("/api/hermes/chat", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agentId,
-          messages: history,
-          projectId,
-          consentProof: {
-            consentId: consent.id,
-            consentedAt: consent.consentedAt,
-            externalServices: consent.externalServices,
-            redactionConfirmed: consent.redactionConfirmed,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        const message = response.status === 401 && err.error === "UNAUTHENTICATED"
-          ? "登录已失效，请重新登录后再使用模块助手。"
-          : `Error: ${err.error ?? "Request failed"}`;
-        setStreamingContent(message);
-        // Finalize after a short delay so the user can read the error
-        setTimeout(() => {
+      await runHermes({
+        projectId,
+        agentId,
+        messages: history,
+        consentId: consent.id,
+        onChunk: (chunk) => setStreamingContent((prev) => prev + chunk),
+        onComplete: () => {
           setStreamingContent((prev) => {
             if (prev) {
-              setMessages((m) => [
-                ...m,
-                { id: nanoid(), role: "assistant", content: prev },
-              ]);
+              setMessages((m) => [...m, { id: nanoid(), role: "assistant", content: prev }]);
             }
             setStreaming(false);
             setStreamingContent("");
             return "";
           });
-        }, 500);
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        setStreaming(false);
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let content = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        content += chunk;
-        setStreamingContent(content);
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        { id: nanoid(), role: "assistant", content },
-      ]);
-      setStreaming(false);
-      setStreamingContent("");
+        },
+        onError: (error) => {
+          const message = error.message.includes("UNAUTHENTICATED")
+            ? "登录已失效，请重新登录后再使用模块助手。"
+            : `Error: ${error.message}`;
+          setStreamingContent(message);
+          setTimeout(() => {
+            setStreamingContent((prev) => {
+              if (prev) {
+                setMessages((m) => [...m, { id: nanoid(), role: "assistant", content: prev }]);
+              }
+              setStreaming(false);
+              setStreamingContent("");
+              return "";
+            });
+          }, 500);
+        },
+      });
     } catch {
       setStreamingContent("Network error. Please try again.");
       setTimeout(() => {

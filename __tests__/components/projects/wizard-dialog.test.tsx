@@ -55,7 +55,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
-vi.mock("@/lib/local/hooks", () => ({
+vi.mock("@/lib/hooks", () => ({
   createProject: (...args: any[]) => mockCreateProjectFn(...args),
   useLocalProjects: () => ({ data: [], error: null, refetch: () => {} }),
 }));

@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import type { AgentId } from "@/lib/ai/agents/registry";
 import { isBuiltInAgent } from "@/lib/ai/agents/registry";
-import { useWorkflowProgress } from "@/lib/local/hooks";
+import { useWorkflowProgress } from "@/lib/hooks";
+import { getMyTraining } from "@/lib/client/training";
 import { getStage, primaryStageForAgent, STAGES } from "./stages";
 import { ModuleTopBar } from "./module-top-bar";
 import { WorkflowStepper } from "./workflow-stepper";
@@ -176,20 +177,15 @@ export function ModuleWorkspace({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/training/me?include=all`);
-        if (!res.ok || cancelled) return;
-        const json = await res.json();
-        const submissions = (json.submissions ?? []) as Array<{
-          task_id: string;
-          status: string;
-          training_reviews?: Array<{ decision: string }>;
-        }>;
+        const me = await getMyTraining("all");
+        if (cancelled) return;
+        const submissions = me.submissions ?? [];
         const { agentsCompletedByTraining } = await import("@/lib/training/task-catalog");
-        const statuses = submissions.map((s) => {
-          const decision = s.training_reviews?.[0]?.decision;
-          let status = s.status;
-          if (decision === "approved" || s.status === "completed") status = "approved";
-          return { taskId: s.task_id, status };
+        const statuses = submissions.map((submission) => {
+          const decision = submission.reviews?.[0]?.decision;
+          let status = submission.status;
+          if (decision === "approved" || submission.status === "completed") status = "approved";
+          return { taskId: submission.taskId, status };
         });
         if (!cancelled) {
           setTrainingCompletedAgents(agentsCompletedByTraining({ taskStatuses: statuses }));

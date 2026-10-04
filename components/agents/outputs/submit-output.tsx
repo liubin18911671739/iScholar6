@@ -17,7 +17,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useLatestAgentRun, useLocalManuscripts } from "@/lib/local/hooks";
+import { useLatestAgentRun, useLocalManuscripts } from "@/lib/hooks";
 import { type AgentStructuredOutput, type SubmitOutput } from "@/lib/ai/parse-agent-output";
 import { EmptyState } from "./shared/empty-state";
 import { Badge } from "@/components/ui/badge";

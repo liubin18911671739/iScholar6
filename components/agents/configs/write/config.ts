@@ -13,7 +13,7 @@
  * @date 2026-09-16
  */
 
-import { createManuscript, createManuscriptBlock } from "@/lib/local/hooks";
+import { createManuscript, createManuscriptBlock } from "@/lib/hooks";
 import type { AgentPageConfig } from "../../agent-page-template";
 import { WriteOutputPanel } from "@/components/agents/outputs/write-output";
 import { WriteInputs } from "./WriteInputs";

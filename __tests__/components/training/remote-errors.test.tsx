@@ -15,55 +15,8 @@ const mockProjectsQuery = {
   error: null,
   refetch: () => {},
 };
-const mockEmptyList = { data: [] as unknown[], error: null, refetch: () => {} };
-
-vi.mock("@/lib/local/hooks/projects", () => ({
+vi.mock("@/lib/hooks", () => ({
   useLocalProjects: () => mockProjectsQuery,
-}));
-
-vi.mock("@/lib/local/hooks/training", () => ({
-  useTrainingTasks: () => mockEmptyList,
-  useTrainingSubmissions: () => mockEmptyList,
-  useEvidenceCards: () => mockEmptyList,
-  createTrainingTask: vi.fn(async () => "task-id"),
-  upsertTrainingSubmission: vi.fn(async () => "submission-id"),
-  createEvidenceCard: vi.fn(async () => "evidence-id"),
-  updateEvidenceCard: vi.fn(async () => undefined),
-  createTrainingReview: vi.fn(async () => "review-id"),
-  recordAiConsent: vi.fn(async () => ({
-    id: "c1",
-    projectId: "p1",
-    externalServices: [],
-    redactionConfirmed: true,
-    consentedAt: new Date().toISOString(),
-    dataCategories: [],
-  })),
-}));
-
-vi.mock("@/lib/local/hooks", () => ({
-  useLocalProjects: () => mockProjectsQuery,
-  useTrainingTasks: () => mockEmptyList,
-  useTrainingSubmissions: () => mockEmptyList,
-  useEvidenceCards: () => mockEmptyList,
-  useReviewQueue: () => ({ data: [], error: null, refetch: () => {} }),
-  useTrainingPrograms: () => ({ data: [], error: null, refetch: () => {} }),
-  useTrainingEnrollments: () => ({ data: [], error: null, refetch: () => {} }),
-  useTrainingClassReport: () => ({ data: { memberCount: 0 }, error: null, refetch: () => {} }),
-  createTrainingTask: vi.fn(async () => "task-id"),
-  upsertTrainingSubmission: vi.fn(async () => "submission-id"),
-  createEvidenceCard: vi.fn(async () => "evidence-id"),
-  updateEvidenceCard: vi.fn(async () => undefined),
-  createTrainingReview: vi.fn(async () => "review-id"),
-  createTrainingProgram: vi.fn(async () => "program-id"),
-  enrollLearner: vi.fn(async () => "enrollment-id"),
-  recordAiConsent: vi.fn(async () => ({
-    id: "c1",
-    projectId: "p1",
-    externalServices: [],
-    redactionConfirmed: true,
-    consentedAt: new Date().toISOString(),
-    dataCategories: [],
-  })),
 }));
 
 vi.mock("sonner", () => ({

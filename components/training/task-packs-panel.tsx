@@ -25,11 +25,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MVP_TRAINING_TASKS } from "@/lib/training/registry";
 import { buildCurriculumPackJson } from "@/lib/training/task-pack-schema";
+import { listTaskPacks, upsertTaskPack } from "@/lib/client/training";
 
 /** A stored task-pack summary row. */
 type PackRow = {
   id: string;
-  pack_key: string;
+  packKey: string;
   name: string;
   version: string;
   source: string;
@@ -70,11 +71,13 @@ export function TaskPacksPanel({ readOnly = false }: { readOnly?: boolean }) {
 
   // Load stored packs and the builtin pack count.
   const load = useCallback(async () => {
-    const res = await fetch("/api/training/task-packs");
-    if (!res.ok) return;
-    const body = await res.json();
-    setPacks(body.data?.packs ?? []);
-    setBuiltinCount((body.data?.builtin ?? []).length || 8);
+    try {
+      const body = await listTaskPacks();
+      setPacks((body.packs ?? []) as PackRow[]);
+      setBuiltinCount((body.builtin ?? []).length || 8);
+    } catch {
+      /* leave counts as-is on failure */
+    }
   }, []);
 
   useEffect(() => {
@@ -120,21 +123,33 @@ export function TaskPacksPanel({ readOnly = false }: { readOnly?: boolean }) {
   async function upload() {
     setBusy(true);
     try {
-      let parsed: unknown;
+      let parsed: {
+        key?: unknown;
+        name?: unknown;
+        version?: unknown;
+        description?: unknown;
+        tasks?: unknown;
+      };
       try {
         parsed = JSON.parse(json);
       } catch {
         toast.error(t("packInvalidJson"));
         return;
       }
-      const res = await fetch("/api/training/task-packs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(String(body.error ?? t("packUploadFailed")));
+      if (typeof parsed.key !== "string" || typeof parsed.name !== "string" || !Array.isArray(parsed.tasks)) {
+        toast.error(t("packInvalidJson"));
+        return;
+      }
+      try {
+        await upsertTaskPack({
+          key: parsed.key,
+          name: parsed.name,
+          version: typeof parsed.version === "string" ? parsed.version : undefined,
+          description: typeof parsed.description === "string" ? parsed.description : undefined,
+          tasks: parsed.tasks as Array<Record<string, unknown>>,
+        });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : t("packUploadFailed"));
         return;
       }
       toast.success(t("packUploadSuccess"));
@@ -161,7 +176,7 @@ export function TaskPacksPanel({ readOnly = false }: { readOnly?: boolean }) {
               <span>
                 {p.name}{" "}
                 <span className="text-xs text-muted-foreground">
-                  ({p.pack_key} v{p.version})
+                  ({p.packKey} v{p.version})
                 </span>
               </span>
               <Badge variant="outline">{p.source}</Badge>

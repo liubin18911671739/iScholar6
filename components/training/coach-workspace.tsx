@@ -24,15 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useLocalProjects } from "@/lib/local/hooks";
-import {
-  useTrainingSubmissions,
-  useEvidenceCards,
-  upsertTrainingSubmission,
-  createEvidenceCard,
-  updateEvidenceCard,
-  recordAiConsent,
-} from "@/lib/local/hooks/training";
+import { useLocalProjects } from "@/lib/hooks";
+import { recordAiConsent } from "@/lib/client/hooks/consent";
 import {
   joinTextFields,
   maskSensitiveContent,
@@ -42,7 +35,9 @@ import {
   detectSensitiveContent,
 } from "@/lib/privacy/sensitive-content";
 import { SensitiveRedactionPanel } from "@/components/privacy/sensitive-redaction-panel";
-import { getCollaborativeAuthHeaders } from "@/lib/supabase/collaborative";
+import { createEvidence, getMyTraining, submitTraining, updateEvidence } from "@/lib/client/training";
+import { listRuns } from "@/lib/client/agents";
+import { toLocalRun } from "@/lib/client/hooks/agent-runs";
 import { StepRenderer } from "@/components/training/steps/step-renderer";
 import {
   AGENT_RUN_IDS_KEY,
@@ -60,7 +55,7 @@ import {
 } from "@/lib/training/submit-checklist";
 import { buildAgentDeepLink } from "@/lib/training/safe-return";
 import { previewRubric } from "@/lib/training/rubrics";
-import { localDB } from "@/lib/local/db";
+import type { LocalEvidenceCard } from "@/lib/types/domain";
 import { cn } from "@/lib/utils";
 
 /** Fallback query result shape used when local hooks return nothing. */
@@ -89,7 +84,28 @@ type RemoteSubmission = {
   status: string;
   latest_review?: RemoteReview | null;
   training_reviews?: RemoteReview[];
+  evidence_cards?: LocalEvidenceCard[];
 };
+
+/** Map a backend camelCase review into the component's review shape. */
+function mapRemoteReview(r: { id: string; decision: string; feedback?: string | null; score?: number | null; createdAt: string }): RemoteReview {
+  return { id: r.id, decision: r.decision, feedback: r.feedback ?? null, score: r.score ?? null, created_at: r.createdAt };
+}
+
+/** Map backend camelCase submissions into the component's submission shape. */
+function mapRemoteSubmissions(rows: Array<Record<string, unknown>>): RemoteSubmission[] {
+  return rows.map((s) => ({
+    id: String(s.id),
+    task_id: String(s.taskId ?? ""),
+    program_id: String(s.programId ?? ""),
+    answers: (s.answers as Record<string, string>) ?? {},
+    reflection: (s.reflection as string | null) ?? null,
+    status: String(s.status ?? ""),
+    latest_review: s.latestReview ? mapRemoteReview(s.latestReview as never) : null,
+    training_reviews: ((s.reviews as Array<Record<string, unknown>>) ?? []).map((r) => mapRemoteReview(r as never)),
+    evidence_cards: (s.evidenceCards as LocalEvidenceCard[] | undefined) ?? [],
+  }));
+}
 
 /** Props for {@link CoachWorkspace}. */
 type Props = {
@@ -124,17 +140,17 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
   const dirtyRef = useRef(false);
   const collaborative = true;
 
-  const submissionsQuery = useTrainingSubmissions(taskId) ?? EMPTY_LIST_QUERY;
-  const { data: submissions, refetch: refetchSubmissions } = submissionsQuery;
-  const localSubmission = submissions?.[0];
-  const evidenceQuery =
-    useEvidenceCards(localSubmission?.id ?? "") ?? EMPTY_LIST_QUERY;
-  const { data: evidenceCards, refetch: refetchEvidence } = evidenceQuery;
-
   const remoteSubmission = useMemo(
     () => remoteSubmissions.find((s) => s.task_id === taskId),
     [remoteSubmissions, taskId]
   );
+  const evidenceCards = useMemo(() => remoteSubmission?.evidence_cards ?? [], [remoteSubmission]);
+
+  // Reload the learner's submissions from the backend.
+  const reloadSubmissions = useCallback(async () => {
+    const me = await getMyTraining("all");
+    setRemoteSubmissions(mapRemoteSubmissions((me.submissions ?? []) as unknown as Array<Record<string, unknown>>));
+  }, []);
   const latestReview = remoteSubmission?.latest_review ?? null;
   const reviewTimeline = remoteSubmission?.training_reviews ?? [];
   const needsRevision =
@@ -154,14 +170,20 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/training/me?include=all", {
-          headers: await getCollaborativeAuthHeaders(),
-        });
-        if (!res.ok) throw new Error("LOAD_FAILED");
-        const json = await res.json();
+        const me = await getMyTraining("all");
         if (cancelled) return;
-        setRemoteEnrollment(json.data?.[0] ?? null);
-        setRemoteSubmissions(json.submissions ?? []);
+        const enrollment = me.enrollments?.[0] ?? null;
+        setRemoteEnrollment(
+          enrollment
+            ? {
+                program_id: enrollment.programId,
+                training_programs: enrollment.program
+                  ? { name: enrollment.program.name, status: enrollment.program.status }
+                  : undefined,
+              }
+            : null
+        );
+        setRemoteSubmissions(mapRemoteSubmissions((me.submissions ?? []) as unknown as Array<Record<string, unknown>>));
       } catch {
         if (!cancelled) {
           setRemoteEnrollment(null);
@@ -173,22 +195,14 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
     };
   }, [t]);
 
-  // Rehydrate answers and reflection from the remote or local submission payload.
+  // Rehydrate answers and reflection from the backend submission payload.
   useEffect(() => {
-    const stored =
-      (collaborative && remoteSubmission
-        ? remoteSubmission.answers
-        : localSubmission?.answers) ?? {};
-    const hydrated = hydrateAnswers(stored, stepIds);
-    setAnswers(hydrated);
-    setReflection(
-      (collaborative && remoteSubmission
-        ? remoteSubmission.reflection
-        : localSubmission?.reflection) ?? ""
-    );
+    const stored = remoteSubmission?.answers ?? {};
+    setAnswers(hydrateAnswers(stored, stepIds));
+    setReflection(remoteSubmission?.reflection ?? "");
     dirtyRef.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate when task or remote/local payload changes
-  }, [collaborative, localSubmission, remoteSubmission, taskId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rehydrate when task or remote payload changes
+  }, [remoteSubmission, taskId]);
 
   const answerBlob = useMemo(
     () =>
@@ -334,24 +348,19 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
           }
         }
 
-        const res = await fetch("/api/training/me", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(await getCollaborativeAuthHeaders()),
-          },
-          body: JSON.stringify({
+        try {
+          await submitTraining({
             programId: remoteEnrollment.program_id,
             taskId,
             answers,
             reflection,
             status,
-            ...(consentProof ? { consentProof } : {}),
-          }),
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const code = String(json.error ?? "");
+            ...(consentProof
+              ? { consentProof: { consentId: consentProof.consentId, consentedAt: consentProof.consentedAt } }
+              : {}),
+          });
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "";
           if (code === "SENSITIVE_CONTENT") setMessage(t("sensitiveBlocked"));
           else if (
             code === "CONSENT_REQUIRED" ||
@@ -363,56 +372,15 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
           return;
         }
         dirtyRef.current = false;
-        setMessage(
-          status === "submitted" ? t("submittedRemote") : t("draftSaved")
-        );
-        const me = await fetch("/api/training/me?include=all", {
-          headers: await getCollaborativeAuthHeaders(),
-        });
-        if (me.ok) {
-          const body = await me.json();
-          setRemoteSubmissions(body.submissions ?? []);
-        }
+        setMessage(status === "submitted" ? t("submittedRemote") : t("draftSaved"));
+        const me = await getMyTraining("all");
+        setRemoteSubmissions(mapRemoteSubmissions((me.submissions ?? []) as unknown as Array<Record<string, unknown>>));
         return;
       }
 
-      if (!projectId) {
+      if (!remoteEnrollment?.program_id) {
         setMessage(t("needProject"));
-        return;
       }
-
-      if (status === "submitted") {
-        try {
-          await recordAiConsent({
-            projectId,
-            trainingTaskId: taskId,
-            purpose: "training_submit",
-            dataCategories: ["training_answers", "reflection"],
-            externalServices: ["local_audit"],
-            redactionConfirmed: true,
-            sensitiveScan: sensitiveScanForAudit(answerBlob),
-          });
-        } catch {
-          /* best-effort */
-        }
-      }
-
-      const id = await upsertTrainingSubmission({
-        taskId,
-        projectId,
-        answers,
-        reflection,
-        status,
-        submittedAt:
-          status === "submitted"
-            ? new Date().toISOString()
-            : localSubmission?.submittedAt,
-      });
-      dirtyRef.current = false;
-      setMessage(
-        status === "submitted" ? t("submittedLocal", { id }) : t("draftSaved")
-      );
-      refetchSubmissions();
     },
     [
       typed,
@@ -427,8 +395,6 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
       answerBlob,
       answers,
       reflection,
-      localSubmission?.submittedAt,
-      refetchSubmissions,
     ]
   );
 
@@ -452,35 +418,43 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
-  // Create an evidence card tied to the current local submission.
+  // Create an evidence card tied to the current backend submission.
   async function saveEvidence() {
-    if (!localSubmission || !claim.trim()) return;
-    await createEvidenceCard({
-      submissionId: localSubmission.id,
-      projectId,
-      claim: claim.trim(),
-      sourceExcerpt: excerpt.trim(),
-      verificationStatus: "unverified",
-    });
+    if (!remoteSubmission || !claim.trim()) return;
+    try {
+      await createEvidence(remoteSubmission.id, {
+        claim: claim.trim(),
+        sourceExcerpt: excerpt.trim(),
+        verificationStatus: "unverified",
+      });
+      await reloadSubmissions();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("evidenceFailed"));
+      return;
+    }
     setClaim("");
     setExcerpt("");
     setMessage(t("evidenceSaved"));
-    refetchEvidence();
+  }
+
+  /** Update an evidence card's verification status. */
+  async function setEvidenceStatus(cardId: string, status: string) {
+    try {
+      await updateEvidence(cardId, { verificationStatus: status });
+      await reloadSubmissions();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : t("evidenceFailed"));
+    }
   }
 
   // Attach the most recent matching agent run id to the current answers.
   async function linkLatestAgentRun() {
     if (!projectId || !typed) return;
-    // sortBy is ascending; last match for this agent is the latest run
-    const runs = await localDB.agentRuns
-      .where("projectId")
-      .equals(projectId)
-      .sortBy("startedAt");
-    const forAgent = runs.filter(
-      (r) =>
-        r.agent === typed.agent || String(r.agent).includes(typed.agent)
-    );
-    const latest = forAgent.at(-1);
+    const runs = (await listRuns(projectId))
+      .map(toLocalRun)
+      .filter((run) => run.agent === typed.agent || String(run.agent).includes(typed.agent))
+      .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+    const latest = runs.at(-1);
     if (!latest) {
       setMessage(t("agentRunsEmpty"));
       return;
@@ -722,8 +696,8 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
     </div>
   );
 
-  // Evidence pane is only rendered once a local submission exists.
-  const evidencePane = localSubmission ? (
+  // Evidence pane is only rendered once a backend submission exists.
+  const evidencePane = remoteSubmission ? (
     <Card>
       <CardHeader>
         <CardTitle>{t("evidenceTitle")}</CardTitle>
@@ -757,12 +731,7 @@ export function CoachWorkspace({ taskId, dualPane = true, className }: Props) {
               <select
                 className="rounded border bg-background p-1"
                 value={card.verificationStatus}
-                onChange={(e) =>
-                  void updateEvidenceCard(card.id, {
-                    verificationStatus: e.target
-                      .value as typeof card.verificationStatus,
-                  })
-                }
+                onChange={(e) => void setEvidenceStatus(card.id, e.target.value)}
               >
                 <option value="unverified">{t("verify.unverified")}</option>
                 <option value="verified">{t("verify.verified")}</option>

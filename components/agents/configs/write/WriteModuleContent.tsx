@@ -19,7 +19,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useLocalBibItems } from "@/lib/local/hooks";
+import { useLocalBibItems } from "@/lib/hooks";
 import { ScrollColumn } from "../shared/ScrollColumn";
 import type { ModuleContentProps } from "../../agent-page-template";
 import { BookOpen, Download } from "lucide-react";

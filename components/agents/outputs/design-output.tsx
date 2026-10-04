@@ -16,7 +16,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useLatestAgentRun } from "@/lib/local/hooks";
+import { useLatestAgentRun } from "@/lib/hooks";
 import { type AgentStructuredOutput, type DesignOutput } from "@/lib/ai/parse-agent-output";
 import { EmptyState } from "./shared/empty-state";
 import { Badge } from "@/components/ui/badge";

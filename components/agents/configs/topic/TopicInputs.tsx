@@ -16,7 +16,7 @@ import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { useLocalAgentRuns } from "@/lib/local/hooks";
+import { useLocalAgentRuns } from "@/lib/hooks";
 import type { InputProps } from "../../agent-page-template";
 
 /** Input form for the topic-selection agent with draft history restore. */

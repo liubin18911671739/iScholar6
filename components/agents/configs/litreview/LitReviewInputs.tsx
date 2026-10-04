@@ -15,7 +15,7 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLatestAgentRun } from "@/lib/local/hooks";
+import { useLatestAgentRun } from "@/lib/hooks";
 import type { InputProps } from "../../agent-page-template";
 
 /** Input form for the literature-review agent with topic auto-fill. */

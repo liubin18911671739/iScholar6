@@ -24,13 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import {
-  createTrainingProgram,
-  enrollLearner,
-  useTrainingClassReport,
-  useTrainingEnrollments,
-  useTrainingPrograms,
-} from "@/lib/local/hooks";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
 import { ProgramTasksPanel } from "@/components/training/program-tasks-panel";
 import { ClassReportPanel } from "@/components/training/class-report-panel";
@@ -40,8 +33,48 @@ import { TaskPacksPanel } from "@/components/training/task-packs-panel";
 import { DueCalendarPanel } from "@/components/training/due-calendar";
 import { OrgMembersPanel } from "@/components/training/org-members-panel";
 import { LmsLinkPanel } from "@/components/training/lms-link-panel";
-import { getCollaborativeClient } from "@/lib/supabase/collaborative";
-import { subscribeTrainingOps } from "@/lib/supabase/realtime-training";
+import { subscribeTrainingOps } from "@/lib/client/realtime";
+import {
+  createEnrollment,
+  createProgram,
+  issueCertificates,
+  listOrganizations,
+  listPrograms,
+  removeEnrollment,
+  updateEnrollment,
+  updateProgram,
+  type TrainingEnrollment as ApiEnrollment,
+  type TrainingProgram as ApiProgram,
+} from "@/lib/client/training";
+
+/** Map a backend camelCase enrollment into the component's display shape. */
+function mapEnrollment(e: ApiEnrollment): RemoteEnrollment {
+  return {
+    id: e.id,
+    learner_id: e.learnerId,
+    status: (e.status as EnrollmentStatus) || "active",
+    role: (e.role as CampRole) || "learner",
+    email: e.email ?? null,
+    profiles: { id: e.learnerId, display_name: e.displayName ?? null, role: e.role },
+  };
+}
+
+/** Map a backend camelCase program into the component's display shape. */
+function mapProgram(p: ApiProgram): RemoteProgram {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description ?? null,
+    discipline: p.discipline ?? null,
+    cohort_name: p.cohortName ?? null,
+    start_date: p.startDate ?? null,
+    end_date: p.endDate ?? null,
+    max_members: p.maxMembers ?? null,
+    status: p.status as ProgramStatus,
+    organization_id: p.organizationId ?? null,
+    training_enrollments: (p.enrollments ?? []).map(mapEnrollment),
+  };
+}
 
 /** Program lifecycle status. */
 type ProgramStatus = "draft" | "active" | "archived";
@@ -137,7 +170,6 @@ type ManageAccess = "staff" | "ta" | null;
 /** Staff/TA console for managing training programs, members, and related panels. */
 export function TrainingManagePage() {
   const t = useTranslations("training.manage");
-  const { data: programs } = useTrainingPrograms();
   const [remotePrograms, setRemotePrograms] = useState<RemoteProgram[]>([]);
   const [form, setForm] = useState<ProgramForm>(emptyForm);
   const [learner, setLearner] = useState("");
@@ -154,26 +186,22 @@ export function TrainingManagePage() {
   // Supabase is the sole data layer; staff/ta roles come from GET /programs.
   const isStaffAccess = access === "staff";
   const isTaAccess = access === "ta";
-  const { data: localEnrollments } = useTrainingEnrollments(selected);
-  const { data: localReport } = useTrainingClassReport(selected);
 
   // Load programs and resolve the caller's staff/ta access level.
   const refreshPrograms = useCallback(async () => {
     setRemoteLoadError("");
     setForbidden(false);
     try {
-      const res = await fetch("/api/training/programs");
-      if (res.status === 403) {
+      const body = await listPrograms();
+      setRemotePrograms((body.data ?? []).map(mapProgram));
+      setAccess(body.access === "ta" ? "ta" : "staff");
+    } catch (error) {
+      if ((error as { status?: number }).status === 403) {
         setForbidden(true);
         setRemotePrograms([]);
         setAccess(null);
         return;
       }
-      if (!res.ok) throw new Error("LOAD_FAILED");
-      const json = await res.json();
-      setRemotePrograms(json.data ?? []);
-      setAccess(json.access === "ta" ? "ta" : "staff");
-    } catch {
       setRemotePrograms([]);
       setRemoteLoadError(t("loadError"));
     }
@@ -183,16 +211,17 @@ export function TrainingManagePage() {
   useEffect(() => {
     if (!collaborative || !isStaffAccess) return;
     void (async () => {
-      const res = await fetch("/api/training/organizations");
-      if (!res.ok) return;
-      const json = await res.json();
-      const orgs = (json.data ?? []) as OrgOption[];
-      setOrganizations(orgs);
-      setForm((prev) =>
-        prev.organizationId || orgs.length === 0
-          ? prev
-          : { ...prev, organizationId: orgs[0].id }
-      );
+      try {
+        const orgs = await listOrganizations();
+        setOrganizations(orgs);
+        setForm((prev) =>
+          prev.organizationId || orgs.length === 0
+            ? prev
+            : { ...prev, organizationId: orgs[0].id }
+        );
+      } catch {
+        /* ignore */
+      }
     })();
   }, [collaborative, isStaffAccess]);
 
@@ -203,52 +232,30 @@ export function TrainingManagePage() {
   // Realtime ops toasts (submissions / reviews) — metadata only.
   const programIdsKey = remotePrograms.map((p) => p.id).join(",");
   useEffect(() => {
-    if (!collaborative) return;
-    const client = getCollaborativeClient();
-    if (!client) return;
     const programIds = programIdsKey ? programIdsKey.split(",") : [];
-    const unsub = subscribeTrainingOps(client, {
-      programIds: programIds.length ? programIds : undefined,
-      onEvent: (event) => {
-        if (event.table === "training_submissions") {
-          toast.message(
-            t("realtime.submission", {
-              status: event.status ?? "updated",
-              task: event.taskId ?? "—",
-            })
-          );
-        } else if (event.table === "training_reviews") {
-          toast.message(t("realtime.review"));
-        }
-        void refreshPrograms();
-      },
+    if (programIds.length === 0) return;
+    const unsub = subscribeTrainingOps(programIds, (event) => {
+      if (event.kind === "training.submission") {
+        toast.message(
+          t("realtime.submission", {
+            status: String(event.data.status ?? "updated"),
+            task: String(event.data.taskId ?? "—"),
+          })
+        );
+      } else if (event.kind === "training.review") {
+        toast.message(t("realtime.review"));
+      }
+      void refreshPrograms();
     });
     return unsub;
-  }, [collaborative, programIdsKey, refreshPrograms, t]);
+  }, [programIdsKey, refreshPrograms, t]);
 
-  const displayedPrograms = collaborative
-    ? remotePrograms
-    : (programs ?? []).map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        discipline: p.discipline,
-        cohort_name: p.cohortName,
-        status: "active" as ProgramStatus,
-        training_enrollments: [],
-      }));
+  const displayedPrograms = remotePrograms;
 
   const remoteSelected = remotePrograms.find((program) => program.id === selected);
-  const displayedEnrollments: RemoteEnrollment[] = collaborative
-    ? (remoteSelected?.training_enrollments ?? []).filter((e) => e.status !== "removed")
-    : (localEnrollments ?? []).map((e) => ({
-        id: e.id,
-        learner_id: e.learnerId,
-        status: (e.status as EnrollmentStatus) || "active",
-        role: "learner",
-        profiles: { id: e.learnerId, display_name: e.displayName },
-      }));
-  const displayedReport = collaborative ? undefined : localReport;
+  const displayedEnrollments: RemoteEnrollment[] = (remoteSelected?.training_enrollments ?? []).filter(
+    (e) => e.status !== "removed"
+  );
   const selectedProgram = displayedPrograms.find((p) => p.id === selected);
   const isArchived = selectedProgram?.status === "archived";
 
@@ -263,10 +270,8 @@ export function TrainingManagePage() {
     setBusy(true);
     try {
       if (collaborative) {
-        const res = await fetch("/api/training/programs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        try {
+          const created = await createProgram({
             name: form.name.trim(),
             description: form.description.trim() || null,
             discipline: form.discipline.trim() || null,
@@ -276,11 +281,13 @@ export function TrainingManagePage() {
             maxMembers: form.maxMembers ? Number(form.maxMembers) : null,
             status: form.status,
             organizationId: form.organizationId || null,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          if (json.error === "FORBIDDEN") {
+          });
+          const mapped = mapProgram(created);
+          setRemotePrograms((items) => [mapped, ...items]);
+          setSelected(mapped.id);
+          toast.success(t("createSuccess"));
+        } catch (error) {
+          if (error instanceof Error && error.message === "FORBIDDEN") {
             setForbidden(true);
             setError(t("forbiddenCreate"));
           } else {
@@ -288,18 +295,6 @@ export function TrainingManagePage() {
           }
           return;
         }
-        setRemotePrograms((items) => [json.data, ...items]);
-        setSelected(json.data.id);
-        toast.success(t("createSuccess"));
-      } else {
-        const id = await createTrainingProgram({
-          name: form.name.trim(),
-          cohortName: form.cohortName.trim() || form.name.trim(),
-          discipline: form.discipline.trim() || undefined,
-          description: form.description.trim() || undefined,
-        });
-        setSelected(id);
-        toast.success(t("createSuccess"));
       }
       setForm(emptyForm());
     } catch {
@@ -315,31 +310,23 @@ export function TrainingManagePage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/training/programs/${selected}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim() || undefined,
-          description: form.description.trim() || null,
-          discipline: form.discipline.trim() || null,
-          cohortName: form.cohortName.trim() || null,
-          startDate: form.startDate || null,
-          endDate: form.endDate || null,
-          maxMembers: form.maxMembers ? Number(form.maxMembers) : null,
-          status: form.status,
-        }),
+      const updated = await updateProgram(selected, {
+        name: form.name.trim() || undefined,
+        description: form.description.trim() || null,
+        discipline: form.discipline.trim() || null,
+        cohortName: form.cohortName.trim() || null,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+        maxMembers: form.maxMembers ? Number(form.maxMembers) : null,
+        status: form.status,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? t("saveFailed"));
-        return;
-      }
+      const patch = mapProgram(updated);
       setRemotePrograms((items) =>
-        items.map((p) => (p.id === selected ? { ...p, ...json.data } : p))
+        items.map((p) => (p.id === selected ? { ...p, ...patch, training_enrollments: p.training_enrollments } : p))
       );
       toast.success(t("saveSuccess"));
-    } catch {
-      setError(t("saveFailed"));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t("saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -362,24 +349,26 @@ export function TrainingManagePage() {
   }, [remoteSelected]);
 
   // Invite a single email to the selected program.
-  async function inviteOne(email: string) {
-    if (!selected || !email.trim()) return;
-    const res = await fetch(`/api/training/programs/${selected}/members`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim() }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(inviteErrorMessage(String(json.error ?? "GENERIC"), t));
+  async function inviteOne(email: string): Promise<boolean> {
+    if (!selected || !email.trim()) return false;
+    try {
+      const inviteRes = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const inviteJson = await inviteRes.json().catch(() => ({}));
+      if (!inviteRes.ok || !inviteJson.userId) {
+        toast.error(inviteErrorMessage(String(inviteJson.error ?? "GENERIC"), t));
+        return false;
+      }
+      await createEnrollment(selected, { learnerId: inviteJson.userId as string });
+      toast.success(t("inviteSuccess", { email: email.trim() }));
+      return true;
+    } catch (error) {
+      toast.error(inviteErrorMessage(error instanceof Error ? error.message : "GENERIC", t));
       return false;
     }
-    if (json.existing || json.error === "ALREADY_ENROLLED") {
-      toast.message(t("inviteErrors.ALREADY_ENROLLED"));
-    } else {
-      toast.success(t("inviteSuccess", { email: email.trim() }));
-    }
-    return true;
   }
 
   // Enroll/invite a learner by email (remote) or local id.
@@ -392,17 +381,8 @@ export function TrainingManagePage() {
     setError("");
     setBusy(true);
     try {
-      if (collaborative) {
-        await inviteOne(learner);
-        await refreshPrograms();
-      } else {
-        await enrollLearner({
-          programId: selected,
-          learnerId: learner,
-          displayName: learner,
-        });
-        toast.success(t("inviteSuccess", { email: learner }));
-      }
+      await inviteOne(learner);
+      await refreshPrograms();
       setLearner("");
     } catch {
       setError(t("inviteFailed"));
@@ -425,19 +405,9 @@ export function TrainingManagePage() {
     if (emails.length === 0) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/training/programs/${selected}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(inviteErrorMessage(String(json.error ?? "GENERIC"), t));
-        return;
-      }
-      const rows = (json.data ?? []) as Array<{ ok: boolean; error?: string }>;
-      const okCount = rows.filter((r) => r.ok).length;
-      const failCount = rows.length - okCount;
+      const results = await Promise.all(emails.map((email) => inviteOne(email)));
+      const okCount = results.filter(Boolean).length;
+      const failCount = results.length - okCount;
       toast.success(t("batchResult", { ok: okCount, fail: failCount }));
       setBatchEmails("");
       await refreshPrograms();
@@ -453,17 +423,11 @@ export function TrainingManagePage() {
     if (!collaborative || !selected) return;
     setBusy(true);
     try {
-      const res = await fetch(
-        `/api/training/programs/${selected}/members/${enrollmentId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        toast.error(String(json.error ?? t("removeFailed")));
-        return;
-      }
+      await removeEnrollment(selected, enrollmentId);
       toast.success(t("removeSuccess"));
       await refreshPrograms();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("removeFailed"));
     } finally {
       setBusy(false);
     }
@@ -472,20 +436,13 @@ export function TrainingManagePage() {
   // Update a member's camp role (learner/ta).
   async function setMemberRole(enrollmentId: string, role: CampRole) {
     if (!collaborative || !selected) return;
-    const res = await fetch(
-      `/api/training/programs/${selected}/members/${enrollmentId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      }
-    );
-    if (!res.ok) {
+    try {
+      await updateEnrollment(selected, enrollmentId, { role });
+      toast.success(t("roleUpdated"));
+      await refreshPrograms();
+    } catch {
       toast.error(t("saveFailed"));
-      return;
     }
-    toast.success(t("roleUpdated"));
-    await refreshPrograms();
   }
 
   // Count currently active enrollments.
@@ -645,7 +602,7 @@ export function TrainingManagePage() {
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               {t("memberCount", {
-                count: displayedReport?.memberCount ?? activeCount,
+                count: activeCount,
               })}
               {isArchived && (
                 <p className="mt-2 text-amber-500">{t("archivedHint")}</p>
@@ -678,18 +635,12 @@ export function TrainingManagePage() {
                 onClick={async () => {
                   setBusy(true);
                   try {
-                    const res = await fetch(
-                      `/api/training/programs/${selected}/certificates`,
-                      { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
-                    );
-                    const json = await res.json().catch(() => ({}));
-                    if (!res.ok) {
-                      toast.error(String(json.error ?? t("certIssueFailed")));
-                      return;
-                    }
-                    const issued = (json.data?.issued ?? []).length;
-                    const skipped = (json.data?.skipped ?? []).length;
+                    const result = await issueCertificates(selected);
+                    const issued = (result.issued ?? []).length;
+                    const skipped = (result.skipped ?? []).length;
                     toast.success(t("certIssueResult", { issued, skipped }));
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : t("certIssueFailed"));
                   } finally {
                     setBusy(false);
                   }

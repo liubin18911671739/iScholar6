@@ -6,7 +6,7 @@
  * - Reuses the shared browser client so free mutation helpers invalidate live queries.
  *
  * Notes:
- * - Always mounted; harmless when `NEXT_PUBLIC_DATA_BACKEND=legacy` (no queries run).
+ * - Always mounted; all research/training hooks run through React Query.
  *
  * @author mrpi
  * @date 2026-09-27

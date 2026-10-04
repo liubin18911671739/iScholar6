@@ -45,7 +45,7 @@ const mockBibItems = [
   },
 ];
 
-vi.mock("@/lib/local/hooks", () => ({
+vi.mock("@/lib/hooks", () => ({
   useLocalBibItems: () => ({ data: mockBibItems, error: null, refetch: () => {} }),
   deleteBibItem: mockDeleteBibItem,
 }));
