@@ -40,6 +40,12 @@
 - 🟢 2026-09-30 文档同步：`README.md` 全量刷新；7 份 `doc/*` 去除「重构进行中」横幅与旧栈附录，订正已删除脚本/文件/环境变量引用；`docker-compose.yml` / `docker/web.Dockerfile` 移除 `NEXT_PUBLIC_DATA_BACKEND`/`NEXT_PUBLIC_COLLABORATIVE_MODE`；`package.json` 描述订正。
 - 🟡 每次新增/修改 Alembic 迁移后同步 `doc/database.md`（迁移表已补 `0006`–`0012`）。
 
+### 运维 / 环境（2026-10-04）
+- 🟢 向量检索落地：迁移 `20260929_0013` 为 `bib_items`/`rag_chunks.embedding` 建 HNSW 余弦索引；`/v1/vectors/search` 支持 `bib_items`/`rag_chunks`/`both` 目标与 `score`（1−cosine_distance）；`backend` 镜像切到 `vectors` target（torch CPU wheel + 清华镜像）；模型下载走 `HF_ENDPOINT`（默认 hf-mirror）并落 `hfcache` 共享卷；容器级冒烟 + 回填验证全过。
+- 🟢 登录限流修复：`lib/auth.ts` 仅对失败登录计数且成功即清零（此前成功登录也计数且不清零，第 11 次起误伤合法用户）；E2E 由 22/51 → 51/51。
+- 🟢 新增 `__tests__/api/training-proxy.test.ts`（训练 BFF 代理契约 5 用例，全套 vitest 45 文件/207 用例）。
+- 🟡 邀请邮件链路代码完备（`lib/server/smtp.ts` 依赖 `SMTP_*`；缺配置时优雅降级 `sent:false`），但生产 `.env` 未填真实凭证；上线前填写并验证一次邀请激活流程。
+
 ## 已完成里程碑
 
 - **Stage 0**：全栈 Docker + Auth.js + HMAC 身份 + Alembic；`middleware.ts` Edge 守卫应用路由。
