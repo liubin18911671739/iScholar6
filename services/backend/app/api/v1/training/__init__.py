@@ -13,6 +13,7 @@ from app.api.v1.training import (
     certificates,
     consents,
     enrollments,
+    evidence,
     export,
     lms,
     me,
@@ -39,6 +40,7 @@ router.include_router(submissions.router)
 router.include_router(me.router)
 router.include_router(reviews.router)
 router.include_router(peer.router)
+router.include_router(evidence.router)
 router.include_router(certificates.program_router)
 router.include_router(certificates.me_router)
 router.include_router(certificates.verify_router)

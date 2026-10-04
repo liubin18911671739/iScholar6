@@ -42,7 +42,7 @@ def build(harness: AgentHarness):
             )
             or state.get("goal", "")
         )
-        result = await get_model("hermes").generate(system, user)
+        result = await harness.stream_model(get_model("hermes"), system, user)
         await harness.emit("hermes.chat.completed", {})
         return {"draft": {"text": result.text, "usage": {"tokenIn": result.token_in, "tokenOut": result.token_out}}}
 

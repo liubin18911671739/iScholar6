@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +27,8 @@ def _mask(user_id: str) -> str:
 async def list_consents(
     program_id: uuid.UUID,
     purpose: str | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50, alias="pageSize"),
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
@@ -48,6 +50,9 @@ async def list_consents(
     redacted = sum(1 for r in rows if r.redaction_confirmed)
     sensitive_total = sum(int((r.sensitive_scan or {}).get("total", 0)) for r in rows)
 
+    offset = (page - 1) * page_size
+    page_rows = rows[offset : offset + page_size]
+
     data: list[dict[str, Any]] = [
         {
             "id": str(r.id),
@@ -63,7 +68,7 @@ async def list_consents(
             "sensitiveScan": r.sensitive_scan,
             "consentedAt": iso(r.created_at),
         }
-        for r in rows
+        for r in page_rows
     ]
     return ok(
         {
@@ -74,5 +79,8 @@ async def list_consents(
                 "sensitiveScanTotal": sensitive_total,
             },
             "masked": not staff,
+            "page": page,
+            "pageSize": page_size,
+            "total": total,
         }
     )

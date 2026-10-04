@@ -24,7 +24,7 @@ import { isValidAgent, AGENT_META } from "@/lib/ai/agents/registry";
 import { ToolWorkspace, type AgentStatus } from "@/components/tools/tool-workspace";
 import { useAgentRun } from "@/lib/ai/agents/use-agent-run";
 import { MarkdownText } from "@/components/ui/markdown-text";
-import { recordAiConsent, createProject, hardDeleteProject } from "@/lib/local/hooks";
+import { recordAiConsent, createProject, hardDeleteProject } from "@/lib/hooks";
 import { containsSensitiveContent } from "@/lib/privacy/sensitive-content";
 
 /** Maps each standalone tool slug to the agent id that performs the work. */

@@ -32,7 +32,7 @@ _DECISION_STATUS = {"approved": "completed", "escalated": "escalated", "needs_re
 
 # Learners may only draft or submit; "completed"/"approved" are derived from a
 # staff review (prevents self-approval and certificate bypass).
-LEARNER_STATUSES = {"draft", "submitted"}
+LEARNER_STATUSES = {"draft", "in_progress", "submitted"}
 REVIEWER_STATUSES = {"submitted", "needs_review", "escalated", "completed", "reviewed"}
 
 

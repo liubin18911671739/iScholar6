@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -10,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
-from app.api.v1.training.common import iso, ok
+from app.api.v1.training.common import iso
 from app.api.v1.training.deps import can_manage, display_names, global_role, is_program_ta, load_program
 from app.api.v1.training.progress import _review_likes, load_curriculum, load_reviews, load_submissions
 from app.core.db import get_session
@@ -132,5 +134,19 @@ async def export_program(
         raise HTTPException(status_code=422, detail="INVALID_SCOPE")
 
     if format == "csv":
-        return Response(content=to_csv(rows), media_type="text/csv")
-    return ok(rows)
+        safe_name = re.sub(r"[^\w\u4e00-\u9fff-]+", "_", program.name)
+        stamp = datetime.now(UTC).date().isoformat()
+        filename = f"training-{safe_name}-{scope}-{stamp}.csv"
+        return Response(
+            content=to_csv(rows),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    return {
+        "ok": True,
+        "program": {"id": str(program.id), "name": program.name},
+        "scope": scope,
+        "redact": redact,
+        "exportedAt": datetime.now(UTC).isoformat(),
+        "rows": rows,
+    }

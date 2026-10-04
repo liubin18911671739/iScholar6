@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.model import AgentModel, ModelResult
 from app.core.events import next_run_sequence
+from app.mcp.plugin_tools import PluginToolDef, execute_plugin_tool
 from app.mcp.registry import registry
 from app.models import AgentRun, Artifact, Evidence, RunEvent, RunStatus
 
@@ -34,6 +36,8 @@ class AgentHarness:
     run_id: str
     allowed_tools: set[str]
     max_tool_calls: int = 8
+    # Owner-scoped declarative plugin tools resolved for this run (not global).
+    plugin_tools: dict[str, PluginToolDef] = field(default_factory=dict)
 
     async def emit(self, event_type: str, data: dict[str, Any]) -> None:
         sequence = await next_run_sequence(self.session, self.run_id)
@@ -50,20 +54,61 @@ class AgentHarness:
 
     async def call_tool(self, name: str, **arguments: Any) -> Any:
         await self.ensure_active()
-        if name not in self.allowed_tools or registry.get(name) is None:
+        plugin_tool = self.plugin_tools.get(name)
+        if name not in self.allowed_tools or (plugin_tool is None and registry.get(name) is None):
             raise HarnessError(f"TOOL_NOT_ALLOWED: {name}")
         count = await self.session.scalar(select(func.count()).select_from(RunEvent).where(RunEvent.run_id == self.run_id, RunEvent.type == "tool.completed"))
         if count >= self.max_tool_calls:
             raise HarnessError("TOOL_BUDGET_EXCEEDED")
         await self.emit("tool.started", {"name": name, "arguments": arguments})
         try:
-            result = await registry.call(name, arguments)
+            if plugin_tool is not None:
+                result = await execute_plugin_tool(plugin_tool, dict(arguments))
+            else:
+                result = await registry.call(name, arguments)
             await self.ensure_active()
         except Exception as exc:
             await self.emit("tool.failed", {"name": name, "error": str(exc)})
             raise HarnessError(f"TOOL_FAILED: {name}") from exc
         await self.emit("tool.completed", {"name": name, "resultCount": len(result) if isinstance(result, list) else 1})
         return result
+
+    async def emit_text_deltas(self, text: str, *, chunk_size: int = 160, event_type: str = "message.delta") -> None:
+        """Emit a model answer as incremental ``message.delta`` events."""
+        for index in range(0, len(text), chunk_size):
+            await self.emit(event_type, {"text": text[index : index + chunk_size]})
+
+    async def stream_model(
+        self,
+        model: AgentModel,
+        system: str,
+        user: str,
+        *,
+        chunk_size: int = 160,
+        event_type: str = "message.delta",
+    ) -> ModelResult:
+        """Stream a model answer, batching tokens into ``message.delta`` events."""
+        buffer = ""
+        full = ""
+        deltas: list[str] = []
+
+        async def on_delta(piece: str) -> None:
+            nonlocal buffer, full
+            if not piece:
+                return
+            buffer += piece
+            full += piece
+            if len(buffer) >= chunk_size:
+                deltas.append(buffer)
+                buffer = ""
+
+        result = await model.stream(system, user, on_delta)
+        if buffer:
+            deltas.append(buffer)
+        for delta in deltas:
+            await self.emit(event_type, {"text": delta})
+        text = full or result.text
+        return ModelResult(text=text, token_in=result.token_in, token_out=result.token_out)
 
     async def persist_evidence(self, evidence: list[dict[str, Any]]) -> None:
         for item in evidence:

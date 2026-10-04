@@ -13,7 +13,7 @@
 "use client";
 
 import { TrainingReport } from "@/components/training/report";
-import { useLocalProjects } from "@/lib/local/hooks";
+import { useLocalProjects } from "@/lib/hooks";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
 
 /** Route entry that loads local projects and renders the training report. */

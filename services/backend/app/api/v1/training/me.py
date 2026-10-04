@@ -19,13 +19,14 @@ from app.core.db import get_session
 from app.core.notify import notify_program
 from app.core.security import Identity, require_identity
 from app.models import AiConsent, EvidenceCard, TrainingEnrollment, TrainingProgram, TrainingReview, TrainingSubmission
+from app.privacy.sensitive_content import contains_sensitive_content, join_text_fields
 
 router = APIRouter(prefix="/me", tags=["training"])
 
 CONSENT_MAX_AGE = timedelta(minutes=30)
 
 # Learners may only draft or submit; completion is derived from a staff review.
-LEARNER_STATUSES = {"draft", "submitted"}
+LEARNER_STATUSES = {"draft", "in_progress", "submitted"}
 
 
 class ConsentProof(CamelModel):
@@ -184,6 +185,11 @@ async def submit(
     program = await load_program(session, body.program_id)
     if program.status == "archived":
         raise HTTPException(status_code=409, detail="PROGRAM_NOT_ACCEPTING")
+
+    # Server-side PII gate (defense in depth; the client also blocks + masks).
+    blob = join_text_fields({**body.answers, "reflection": body.reflection or ""})
+    if contains_sensitive_content(blob):
+        raise HTTPException(status_code=400, detail="SENSITIVE_CONTENT")
 
     if body.status == "submitted":
         proof = body.consent_proof

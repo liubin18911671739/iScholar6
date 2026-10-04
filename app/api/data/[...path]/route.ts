@@ -2,7 +2,7 @@
  * Data BFF proxy (/api/data/[...path])
  *
  * Forwards to the backend `/v1/data/<path>` with a signed Auth.js identity.
- * Client hooks call this instead of Supabase when `NEXT_PUBLIC_DATA_BACKEND=backend`.
+ * Client hooks (`lib/client/hooks/*`) call this for research-core data.
  */
 
 import { NextRequest } from "next/server";

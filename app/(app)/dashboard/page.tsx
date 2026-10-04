@@ -7,7 +7,7 @@
  * - Renders cost tracking charts, recent projects, and a getting-started panel.
  *
  * Notes:
- * - Collaborates with @/lib/local/hooks, cost-charts, and the agent registry.
+ * - Collaborates with @/lib/hooks, cost-charts, and the agent registry.
  *
  * @author mrpi
  * @date 2026-09-16
@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FolderKanban, Activity, Clock, ArrowRight } from "lucide-react";
-import { useLocalProjects, useLocalAllAgentRuns, useCostSummary } from "@/lib/local/hooks";
+import { useLocalProjects, useLocalAllAgentRuns, useCostSummary } from "@/lib/hooks";
 import { CostSummaryCards, CostByAgentChart, CostOverTimeChart } from "@/components/dashboard/cost-charts";
 import { getAgentMeta } from "@/lib/ai/agents/registry";
 import { RemoteLoadError, firstRemoteError } from "@/components/collaborative/remote-load-error";

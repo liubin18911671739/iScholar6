@@ -4,23 +4,33 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import identity_uuid
 from app.api.v1.training.common import CamelModel, iso, ok
-from app.api.v1.training.deps import global_role, load_program, require_manage
+from app.api.v1.training.deps import (
+    can_manage,
+    global_role,
+    load_program,
+    require_manage,
+    require_staff_or_ta,
+    user_contacts,
+)
 from app.api.v1.training.progress import _review_likes, load_curriculum, load_reviews, load_submissions
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
 from app.models import TrainingEnrollment, TrainingLmsLink
+from app.training.export import to_csv
 from app.training.lms_ags import LmsLinkCredentials, push_gradebook_to_ags
+from app.training.lms_gradebook import build_lms_gradebook_rows, to_ags_score_lines
 from app.training.progress import SubmissionLike, build_class_progress
 
 link_router = APIRouter(prefix="/programs/{program_id}/lms/link", tags=["training"])
@@ -185,16 +195,51 @@ async def _gradebook_learners(session: AsyncSession, program_id: uuid.UUID) -> l
 @gradebook_router.get("")
 async def get_gradebook(
     program_id: uuid.UUID,
-    format: str = Query(default="json"),
+    format: str = Query(default="generic"),
+    as_: str | None = Query(default=None, alias="as"),
+    email: bool = Query(default=False),
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
-    """Gradebook rows (overall + per-task scores); TA exports are redacted."""
+    """LMS gradebook CSV (Canvas/Moodle/generic) or an AGS-shaped JSON payload.
+
+    Staff or the program TA; TA exports never include emails.
+    """
     user_id = identity_uuid(identity)
     role = await global_role(session, user_id)
     program = await load_program(session, program_id)
-    await require_manage(session, role, user_id, program)
-    return ok(await _gradebook_learners(session, program_id))
+    staff = await can_manage(session, role, user_id, program)
+    if not staff:
+        await require_staff_or_ta(session, role, user_id, program)
+
+    learners = await _gradebook_learners(session, program_id)
+    if email and staff:
+        contacts = await user_contacts(session, [uuid.UUID(learner["learnerId"]) for learner in learners])
+        for learner in learners:
+            learner["email"] = (contacts.get(learner["learnerId"]) or {}).get("email")
+
+    if as_ == "ags":
+        line_item = f"urn:ischolar:program:{program_id}:overall"
+        return {
+            "ok": True,
+            "program": {"id": str(program.id), "name": program.name},
+            "format": "ags",
+            "lineItem": {"id": line_item, "label": f"{program.name} Overall", "scoreMaximum": 100},
+            "scores": to_ags_score_lines(learners, line_item),
+            "note": "LTI Advantage AGS-shaped payload for manual/integration wiring. No OAuth in this endpoint.",
+        }
+
+    if format not in {"generic", "canvas", "moodle"}:
+        raise HTTPException(status_code=422, detail="INVALID_FORMAT")
+    rows = build_lms_gradebook_rows(learners, format, course_name=program.name)
+    safe_name = re.sub(r"[^\w\u4e00-\u9fff-]+", "_", program.name)
+    stamp = datetime.now(UTC).date().isoformat()
+    filename = f"lms-{format}-{safe_name}-{stamp}.csv"
+    return Response(
+        content=to_csv(rows),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 class LmsPushRequest(CamelModel):

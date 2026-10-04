@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, TypedDict
 
@@ -10,10 +12,14 @@ from langgraph.types import interrupt
 from sqlalchemy import select
 
 from app.agents.harness import AgentHarness
-from app.agents.model import get_model
+from app.agents.model import TOOL_RESULT_MARKER, AgentModel, ModelResult, ToolSpec, get_model
 from app.agents.prompts import SYSTEM_PROMPTS, build_user_prompt
 from app.agents.schemas import parse_agent_output
 from app.models import Artifact
+
+# Bounded model tool loop: how many tool rounds a draft may take before the
+# model is forced to answer. The harness separately enforces the call budget.
+MAX_TOOL_STEPS = 3
 
 
 class AgentState(TypedDict, total=False):
@@ -44,6 +50,77 @@ class AgentGraphConfig:
     max_context_chars: int = 1000
 
 
+def build_tool_specs(
+    names: Iterable[str], plugin_tools: dict[str, Any] | None = None
+) -> list[ToolSpec]:
+    """Resolve allow-listed tool names (registry + owner plugin tools) to specs."""
+    from app.mcp.registry import registry
+
+    specs: list[ToolSpec] = []
+    for name in sorted(names):
+        tool = registry.get(name)
+        if tool is not None:
+            specs.append(
+                ToolSpec(name=tool.name, description=tool.description, parameters=tool.params_model.model_json_schema())
+            )
+        elif plugin_tools and name in plugin_tools:
+            definition = plugin_tools[name]
+            specs.append(ToolSpec(name=definition.name, description=definition.description, parameters=definition.parameters))
+    return specs
+
+
+def _compact(value: Any, limit: int = 1500) -> str:
+    try:
+        text = json.dumps(value, ensure_ascii=False, default=str)
+    except TypeError:
+        text = str(value)
+    return text[:limit]
+
+
+async def run_agent_draft(
+    harness: AgentHarness,
+    model: AgentModel,
+    system: str,
+    user: str,
+    tool_names: Iterable[str],
+) -> tuple[ModelResult, list[dict[str, Any]]]:
+    """Produce a draft: let the model call allow-listed tools, then answer.
+
+    Tool execution goes through the harness (budget + allow-list + events).
+    The answer is streamed as ``message.delta`` events. Agents without tools
+    stream the model directly.
+    """
+    specs = build_tool_specs(tool_names, getattr(harness, "plugin_tools", None))
+    if not specs:
+        return await harness.stream_model(model, system, user), []
+
+    prompt = user
+    tool_results: list[dict[str, Any]] = []
+    final: ModelResult | None = None
+    for _ in range(MAX_TOOL_STEPS):
+        decision = await model.generate(system, prompt, tools=specs)
+        if not decision.tool_calls:
+            final = decision
+            break
+        prompt += f"\n\n{TOOL_RESULT_MARKER}"
+        for call in decision.tool_calls:
+            try:
+                output = await harness.call_tool(call.name, **(call.arguments or {}))
+            except Exception as exc:  # Tool failures are surfaced to the model.
+                output = {"error": str(exc)}
+            if isinstance(output, list):
+                tool_results.extend(item for item in output if isinstance(item, dict))
+            prompt += f"\n[{call.name}] {_compact(output)}"
+    if final is None:
+        final = await model.generate(system, prompt, tools=None)
+
+    evidence = [item for item in tool_results if item.get("title") and item.get("url")]
+    if evidence:
+        await harness.persist_evidence(evidence)
+    await harness.emit_text_deltas(final.text)
+    return final, tool_results
+
+
 async def _build_context(harness: AgentHarness, project_id: str, kinds: list[str], max_chars: int) -> str:
     """Inject the caller's latest approved artifact(s) per upstream kind."""
     if not kinds:
@@ -66,7 +143,7 @@ async def _build_context(harness: AgentHarness, project_id: str, kinds: list[str
 
 
 def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
-    """Build a plan → context → research → draft → review graph for one agent."""
+    """Build a plan → context → draft (model-driven tools) → review graph."""
 
     async def plan(state: AgentState) -> dict[str, Any]:
         await harness.emit("plan.created", {"agent": config.agent, "goal": state["goal"]})
@@ -78,22 +155,6 @@ def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
         )
         return {"context": context}
 
-    async def research(state: AgentState) -> dict[str, Any]:
-        results: list[dict[str, Any]] = []
-        for tool in config.allowed_tools:
-            arguments = {"query": state["goal"]} if tool == "scholar.search" else {"projectId": state["project_id"]}
-            try:
-                output = await harness.call_tool(tool, **arguments)
-            except Exception:
-                output = []
-            if isinstance(output, list):
-                results.extend(output)
-        if results:
-            await harness.persist_evidence(
-                [item for item in results if isinstance(item, dict) and item.get("title") and item.get("url")]
-            )
-        return {"tool_results": results}
-
     async def draft(state: AgentState) -> dict[str, Any]:
         model = get_model(config.agent)
         agent_input = state.get("input", {}) or {}
@@ -102,16 +163,20 @@ def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
         user = agent_input.get("userPrompt") or build_user_prompt(
             config.agent, agent_input, state.get("context", "")
         )
-        result = await model.generate(system, user)
+        result, tool_results = await run_agent_draft(harness, model, system, user, config.allowed_tools)
         structured = parse_agent_output(config.agent, result.text)
         content: dict[str, Any] = {
             "text": result.text,
             "structured": structured,
-            "sources": state.get("tool_results", []),
+            "sources": tool_results,
             "usage": {"tokenIn": result.token_in, "tokenOut": result.token_out},
         }
         artifact = await harness.save_draft(state["project_id"], config.artifact_kind, content)
-        return {"draft": {**content, "artifactId": str(artifact.id)}, "structured": structured}
+        return {
+            "draft": {**content, "artifactId": str(artifact.id)},
+            "structured": structured,
+            "tool_results": tool_results,
+        }
 
     async def review(state: AgentState) -> dict[str, Any]:
         decision = interrupt(
@@ -126,13 +191,11 @@ def build_agent_graph(config: AgentGraphConfig, harness: AgentHarness):
     builder = StateGraph(AgentState)
     builder.add_node("plan", plan)
     builder.add_node("context", gather_context)
-    builder.add_node("research", research)
     builder.add_node("draft", draft)
     builder.add_node("review", review)
     builder.add_edge(START, "plan")
     builder.add_edge("plan", "context")
-    builder.add_edge("context", "research")
-    builder.add_edge("research", "draft")
+    builder.add_edge("context", "draft")
     builder.add_edge("draft", "review")
     builder.add_edge("review", END)
     return builder
@@ -146,7 +209,7 @@ def build_generic_graph(
     *,
     allowed_tools: list[str] | None = None,
 ):
-    """Plan → (research) → draft → review graph for coach/plugin agents.
+    """Plan → draft → review graph for coach/plugin agents.
 
     Prompts come from the client-resolved ``input`` (plugin packs, locale,
     context); there is no per-agent schema, so the artifact stores raw text.
@@ -156,18 +219,6 @@ def build_generic_graph(
         await harness.emit("plan.created", {"agent": agent, "goal": state["goal"]})
         return {}
 
-    async def research(state: AgentState) -> dict[str, Any]:
-        tools = allowed_tools or []
-        results: list[dict[str, Any]] = []
-        for tool in tools:
-            try:
-                output = await harness.call_tool(tool, query=state["goal"])
-            except Exception:
-                output = []
-            if isinstance(output, list):
-                results.extend(output)
-        return {"tool_results": results}
-
     async def draft(state: AgentState) -> dict[str, Any]:
         model = get_model(agent)
         agent_input = state.get("input", {}) or {}
@@ -176,10 +227,10 @@ def build_generic_graph(
         context = state.get("context", "")
         if context:
             user = f"{user}\n\n{context}"
-        result = await model.generate(system, user)
+        result, tool_results = await run_agent_draft(harness, model, system, user, allowed_tools or [])
         content: dict[str, Any] = {
             "text": result.text,
-            "sources": state.get("tool_results", []),
+            "sources": tool_results,
             "usage": {"tokenIn": result.token_in, "tokenOut": result.token_out},
         }
         artifact = await harness.save_draft(state["project_id"], artifact_kind, content)
@@ -200,12 +251,7 @@ def build_generic_graph(
     builder.add_node("draft", draft)
     builder.add_node("review", review)
     builder.add_edge(START, "plan")
-    if allowed_tools:
-        builder.add_node("research", research)
-        builder.add_edge("plan", "research")
-        builder.add_edge("research", "draft")
-    else:
-        builder.add_edge("plan", "draft")
+    builder.add_edge("plan", "draft")
     builder.add_edge("draft", "review")
     builder.add_edge("review", END)
     return builder

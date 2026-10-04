@@ -22,7 +22,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Plus, FolderKanban } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useLocalProjects } from "@/lib/local/hooks";
+import { useLocalProjects } from "@/lib/hooks";
 import { WizardDialog } from "@/components/projects/wizard-dialog";
 import { RemoteLoadError } from "@/components/collaborative/remote-load-error";
 

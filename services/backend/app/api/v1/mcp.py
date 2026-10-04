@@ -19,6 +19,7 @@ from app.api.v1.training.common import CamelModel
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.security import Identity, require_identity
+from app.mcp.plugin_tools import execute_plugin_tool, load_user_tools
 from app.mcp.registry import registry
 from app.models import AiConsent
 
@@ -38,16 +39,20 @@ class ToolInvoke(CamelModel):
 
 
 @router.get("/tools")
-async def list_tools(identity: Identity = Depends(require_identity)) -> dict[str, Any]:
-    """List the registered MCP tools."""
-    del identity
-    return {
-        "ok": True,
-        "data": [
-            {"name": tool.name, "description": tool.description, "source": tool.source}
-            for tool in registry.list()
-        ],
-    }
+async def list_tools(
+    identity: Identity = Depends(require_identity), session: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    """List the built-in tools plus the caller's owner-scoped declarative tools."""
+    owner_tools = await load_user_tools(session, identity_uuid(identity))
+    data = [
+        {"name": tool.name, "description": tool.description, "source": tool.source}
+        for tool in registry.list()
+    ]
+    data.extend(
+        {"name": tool.name, "description": tool.description, "source": "plugin", "pluginId": tool.plugin_id}
+        for tool in owner_tools.values()
+    )
+    return {"ok": True, "data": data}
 
 
 @router.post("/tools/{name}")
@@ -66,10 +71,13 @@ async def invoke_tool(
         raise HTTPException(status_code=413, detail="REQUEST_TOO_LARGE")
 
     tool = registry.get(name)
-    if tool is None:
-        raise HTTPException(status_code=404, detail="TOOL_NOT_FOUND")
-
+    plugin_tool = None
     owner_id = identity_uuid(identity)
+    if tool is None:
+        plugin_tool = (await load_user_tools(session, owner_id)).get(name)
+        if plugin_tool is None:
+            raise HTTPException(status_code=404, detail="TOOL_NOT_FOUND")
+
     consent = await session.get(AiConsent, body.consent_proof.consent_id)
     if (
         consent is None
@@ -97,7 +105,10 @@ async def invoke_tool(
         params["owner_id"] = str(owner_id)
 
     try:
-        result = await registry.call(name, params)
+        if plugin_tool is not None:
+            result = await execute_plugin_tool(plugin_tool, params)
+        else:
+            result = await registry.call(name, params)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="TOOL_NOT_FOUND") from exc
     except ValueError as exc:

@@ -65,6 +65,12 @@ async def owned_run(session: AsyncSession, run_id: uuid.UUID, owner_id: uuid.UUI
     return run
 
 
+def sse_frame(event_type: str, data: dict[str, Any], sequence: int | None = None) -> str:
+    """Format one Server-Sent Event frame (an `id:` line only when sequenced)."""
+    id_line = f"id: {sequence}\n" if sequence is not None else ""
+    return f"{id_line}event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
 def serialize_artifact(artifact: Artifact) -> dict[str, Any]:
     return {
         "id": str(artifact.id),
@@ -78,7 +84,7 @@ def serialize_artifact(artifact: Artifact) -> dict[str, Any]:
 def serialize_run(run: AgentRun, artifacts: list[Artifact] | None = None) -> dict[str, Any]:
     return {
         "id": str(run.id), "threadId": str(run.thread_id), "projectId": str(run.project_id), "agent": run.agent,
-        "goal": run.goal, "status": run.status, "result": run.result, "error": run.error,
+        "goal": run.goal, "status": run.status, "input": run.input, "result": run.result, "error": run.error,
         "cancelRequested": run.cancel_requested, "createdAt": iso(run.created_at),
         "startedAt": iso(run.started_at), "completedAt": iso(run.completed_at),
         "trainingTaskId": run.training_task_id,
@@ -251,10 +257,10 @@ async def run_events(run_id: uuid.UUID, request: Request, after: int = 0, identi
             events = (await session.scalars(select(RunEvent).where(RunEvent.run_id == run.id, RunEvent.sequence > cursor).order_by(RunEvent.sequence))).all()
             for event in events:
                 cursor = event.sequence
-                yield f"id: {event.sequence}\nevent: {event.type}\ndata: {json.dumps(event.data)}\n\n"
+                yield sse_frame(event.type, event.data, event.sequence)
             current = await session.scalar(select(AgentRun.status).where(AgentRun.id == run.id))
             if current in {RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED}:
-                yield f"event: end\ndata: {json.dumps({'status': current})}\n\n"
+                yield sse_frame("end", {"status": current})
                 return
             yield ": keepalive\n\n"
             await asyncio.sleep(1)

@@ -29,9 +29,7 @@ class Settings(BaseSettings):
     deepseek_api_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-v4-flash"
 
-    # Agent runtime: `langgraph` runs the per-agent graphs; `legacy` proxies the
-    # old web route. `agent_model_fake` forces the deterministic model for tests.
-    agent_runtime: str = "langgraph"
+    # `agent_model_fake` forces the deterministic model for tests.
     agent_model_fake: bool = False
     # When true, creating a run requires an `ai_consents_v2` row with services.
     # Default off: the web BFF verifies consent before forwarding (migration period).

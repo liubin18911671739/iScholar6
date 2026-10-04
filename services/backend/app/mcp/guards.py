@@ -90,6 +90,40 @@ def check_body_size(content_length: str | None, max_bytes: int) -> bool:
         return True
 
 
+async def guarded_request_json(
+    method: str,
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    json_body: Any | None = None,
+    timeout: float = 20.0,
+    max_bytes: int = MAX_RESPONSE_BYTES,
+) -> Any:
+    """Call an allow-listed https URL (GET/POST) with redirects disabled and a size cap."""
+    verb = method.upper()
+    if verb not in {"GET", "POST"}:
+        raise GuardError(f"Unsupported method: {verb}")
+    assert_safe_https_url(url)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+        async with client.stream(verb, url, params=params, headers=headers, json=json_body) as response:
+            response.raise_for_status()
+            chunks: list[bytes] = []
+            total = 0
+            async for chunk in response.aiter_bytes():
+                total += len(chunk)
+                if total > max_bytes:
+                    raise GuardError("Tool response too large")
+                chunks.append(chunk)
+    raw = b"".join(chunks)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw.decode("utf-8", errors="replace")
+
+
 async def guarded_get_json(
     url: str,
     *,
@@ -99,15 +133,6 @@ async def guarded_get_json(
     max_bytes: int = MAX_RESPONSE_BYTES,
 ) -> Any:
     """Fetch JSON from an allow-listed https URL with redirects disabled and a size cap."""
-    assert_safe_https_url(url)
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-        async with client.stream("GET", url, params=params, headers=headers) as response:
-            response.raise_for_status()
-            chunks: list[bytes] = []
-            total = 0
-            async for chunk in response.aiter_bytes():
-                total += len(chunk)
-                if total > max_bytes:
-                    raise GuardError("Tool response too large")
-                chunks.append(chunk)
-    return json.loads(b"".join(chunks))
+    return await guarded_request_json(
+        "GET", url, params=params, headers=headers, timeout=timeout, max_bytes=max_bytes
+    )
