@@ -22,16 +22,29 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
+/** True once >= LOGIN_MAX_ATTEMPTS *failed* attempts within the window. */
 function tooManyLoginAttempts(email: string): boolean {
+  const key = email.toLowerCase();
+  const now = Date.now();
+  const entry = loginAttempts.get(key);
+  if (!entry) return false;
+  if (entry.resetAt <= now) {
+    loginAttempts.delete(key);
+    return false;
+  }
+  return entry.count >= LOGIN_MAX_ATTEMPTS;
+}
+
+/** Count a failed password attempt (successful logins reset the counter). */
+function registerFailedLogin(email: string): void {
   const key = email.toLowerCase();
   const now = Date.now();
   const entry = loginAttempts.get(key);
   if (!entry || entry.resetAt <= now) {
     loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return false;
+    return;
   }
   entry.count += 1;
-  return entry.count > LOGIN_MAX_ATTEMPTS;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -53,13 +66,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await findUserByEmail(email);
         // Uniform small delay on failure to slow credential stuffing.
         if (!user) {
+          registerFailedLogin(email);
           await new Promise((resolve) => setTimeout(resolve, 150));
           return null;
         }
         if (!(await verifyPassword(password, user.password_hash))) {
+          registerFailedLogin(email);
           await new Promise((resolve) => setTimeout(resolve, 150));
           return null;
         }
+        loginAttempts.delete(email.toLowerCase());
         return { id: user.id, email: user.email, name: user.name ?? user.email, role: user.role };
       },
     }),

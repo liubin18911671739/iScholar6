@@ -49,11 +49,12 @@ compose: web · backend · postgres(pgvector) · redis · proxy · eval(profile)
 **Success**: `docker compose config` valid; backend unit tests pass; containers start; Auth.js route responds.
 **Tests**: `services/backend/tests/test_health.py`, `__tests__/lib/auth.test.ts`.
 
-### Stage 1 — Backend data API 🔴
+### Stage 1 — Backend data API 🟢
 **Goal**: port all domain + training data access to Python; web becomes thin BFF.
-**Deliverables**: SQLAlchemy models + Alembic migration for research/training/org/LMS tables; `/v1/data/*`;
-25 `app/api/training/**` routes → proxies; consent + audit in Postgres; realtime via `LISTEN/NOTIFY` → SSE;
+**Deliverables**: SQLAlchemy models + Alembic migration for research/training/org/LMS tables; `/v1/data/*`; training BFF catch-all `/api/training/[...path]`; consent + audit in Postgres; realtime via `LISTEN/NOTIFY` → SSE;
 plugins per-user in Postgres; delete `lib/supabase/*` and `lib/local/*`.
+Vectors: `/v1/vectors` with HNSW indexes + server-side `sentence-transformers` embeddings
+(worker backfill of `bib_items`/`rag_chunks` + query-time embedding; 503-free once installed).
 **Success**: existing flows work through the backend; no `@supabase/*` or `dexie` imports remain.
 **Tests**: pytest data/authz parity; Vitest proxy tests; Playwright training login/flow.
 
