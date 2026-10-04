@@ -1,6 +1,6 @@
 # TODO.md — iScholar v6.0 路线图
 
-> 最近更新：2026-09-30
+> 最近更新：2026-10-04
 > 状态：🔴 未开始 | 🟡 进行中 | 🟢 已完成 | ⚪ 可选 / 本轮 defer
 > 方向以 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) 为准；本文件跟踪执行进度与验证。
 > `CLAUDE.md` 已过时（描述旧浏览器本地栈）；`AGENTS.md` 是维护中的指引。
@@ -56,21 +56,26 @@
 - **隐私守卫**：`app/privacy/sensitive_content.py`（移植自 web），`/v1/training/me` 提交与 evidence 创建/更新处服务端强制 `400 SENSITIVE_CONTENT`。
 - **遗留清理**：删除 `lib/local/*`、`lib/supabase/*`、`lib/lms/*`、遗留 server helper、Supabase 目录/脚本/E2E spec，及 `@supabase/*`/`dexie`/`@huggingface/transformers` 依赖与环境变量；`@/lib/hooks` 现为 `lib/client/hooks` 的纯 re-export。
 
-## 验证现状（2026-09-30）
+## 验证现状（2026-10-04）
 
 | 项 | 结果 |
 | --- | --- |
 | 后端 `ruff check` | 🟢 0 |
-| 后端 `pytest` | 🟢 161 passed（DB 可达）/ 离线 150 passed + 11 skipped |
+| 后端 `pytest` | 🟢 169 passed + 1 skipped（Docker 内 DB 可达；离线自动 skip） |
 | 评估 `services/eval` | 🟢 `ruff` 0 / `pytest` 7 |
-| 前端 `tsc` / `lint` | 🟢 通过 |
-| 前端 `vitest` | 🟢 44 文件 / 202 用例 |
+| 前端 `tsc` / `lint` | 🟢 通过（远端 Node 22.23） |
+| 前端 `vitest` | 🟢 45 文件 / 207 用例 |
 | 前端 `build` | 🟢 通过 |
-| `docker compose config` | 🟢 通过（base + dev） |
-| Alembic | 12 迁移，head `20260929_0012` |
+| `pnpm test:e2e` | 🟢 51/51（登录限流修复后；此前 22/51） |
+| 向量容器验证 | 🟢 `/v1/vectors` 冒烟（三种 target + score）+ worker 回填 5s 内落库 |
+| `docker compose config` | 🟢 通过（base + vectors profile） |
+| Alembic | 13 迁移，head `20260929_0013`（vectors HNSW） |
 
 ## 变更日志
 
+- 🟢 2026-10-04：向量落地收口：`20260929_0013` HNSW 余弦索引；`/v1/vectors/search` 增 `bib_items`/`rag_chunks`/`both` 目标与 `score`，`/embed`/`/status` 收紧签名身份；`backend` 服务切 `vectors` target（torch CPU wheel、清华镜像），`HF_ENDPOINT`（hf-mirror）+ `hfcache` 共享卷；容器级三个 target 冒烟与 worker 回填验证全过。
+- 🟢 2026-10-04：修复 `lib/auth.ts` 登录限流（成功登录也计数且不清零 → 仅失败计数、成功清零），E2E 22/51 → **51/51**；新增 `__tests__/api/training-proxy.test.ts`（5 用例）；全套质量门重跑（ruff/pytest 169、lint/tsc/vitest 207、build、e2e 51）。
+- 🟢 2026-10-04：文档同步：`IMPLEMENTATION_PLAN.md` Stage 1 置 🟢 并订正交付物（训练 BFF catch-all、向量全栈说明）；部署库重建至 `0013` 并回灌 users/projects。
 - 🟢 2026-09-30：Stage 6 收尾：多轮可检查点教练图 + 按用户声明式插件 MCP 工具（`plugin_tools.py`、harness/runtime 注入、`/v1/mcp` 列出/调用）。
 - 🟢 2026-09-30：文档与基础设施同步（README + 7 份 `doc/*` 去旧栈；compose/Dockerfile 清理 `NEXT_PUBLIC_*`；`package.json` 描述）。
 - 🟢 2026-09-30：`/v1/agent/*` 状态机契约测试（`conftest.py` + DB-backed 集成，离线自动 skip）。
