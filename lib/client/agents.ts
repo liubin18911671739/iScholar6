@@ -140,12 +140,17 @@ export interface RunEventHandlers {
   onDelta?: (text: string) => void;
   /** Terminal status from the `end` event. */
   onEnd?: (status: string) => void;
+  /** Any other event (e.g. workflow `step.*`, `run.interrupted`), raw payload. */
+  onEvent?: (type: string, data: Record<string, unknown>) => void;
 }
+
+/** SSE event types forwarded to `onEvent` besides the streaming text. */
+const RELAYED_EVENTS = ["step.started", "step.completed", "run.interrupted", "run.resumed", "run.requeued", "tool.started", "tool.completed", "tool.failed"];
 
 /**
  * Subscribe to a run's backend SSE stream (`/runs/{id}/events`), delivering
- * `message.delta` chunks and the terminal `end` event. Returns an unsubscribe
- * function; no-op when `EventSource` is unavailable (SSR/tests).
+ * `message.delta` chunks, workflow step events, and the terminal `end` event.
+ * Returns an unsubscribe function; no-op when `EventSource` is unavailable.
  */
 export function subscribeRunEvents(runId: string, handlers: RunEventHandlers): () => void {
   if (typeof window === "undefined" || typeof EventSource === "undefined") return () => {};
@@ -158,6 +163,16 @@ export function subscribeRunEvents(runId: string, handlers: RunEventHandlers): (
       /* ignore malformed frames */
     }
   });
+  for (const type of RELAYED_EVENTS) {
+    source.addEventListener(type, (event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent).data) as Record<string, unknown>;
+        handlers.onEvent?.(type, payload);
+      } catch {
+        handlers.onEvent?.(type, {});
+      }
+    });
+  }
   source.addEventListener("end", (event) => {
     try {
       const payload = JSON.parse((event as MessageEvent).data) as { status?: string };

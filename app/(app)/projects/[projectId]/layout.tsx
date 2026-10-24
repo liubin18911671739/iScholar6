@@ -28,10 +28,12 @@ import {
   Send,
   MessageSquare,
   ArrowLeft,
+  Network,
 } from "lucide-react";
 
 /** Ordered agent sub-navigation tabs (href, i18n label key, and icon). */
 const AGENT_TABS = [
+  { href: "research-plan", labelKey: "nav.researchPlan", icon: Network },
   { href: "topic", labelKey: "nav.topic", icon: Search },
   { href: "litreview", labelKey: "nav.litreview", icon: BookOpen },
   { href: "design", labelKey: "nav.design", icon: FlaskConical },

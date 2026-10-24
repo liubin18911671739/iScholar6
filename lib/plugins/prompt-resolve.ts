@@ -40,6 +40,10 @@ const BUILTIN_PROMPTS: Record<BuiltInAgentId, string> = {
   write: IMRAD_WRITER_PROMPT,
   submit: SUBMIT_MATCH_PROMPT,
   rebuttal: REBUTTAL_PROMPT,
+  // Workflow steps use backend-controlled prompts; this only satisfies the
+  // resolution interface (the backend ignores the client override).
+  "research-plan":
+    "You coordinate a multi-agent research-plan workflow (topic → literature → design → quality → summary).",
 };
 
 /** Return the built-in system prompt for a built-in agent id. */
@@ -137,6 +141,9 @@ export async function buildBuiltinUserPrompt(
       return `Match this paper to suitable journals. Abstract: "${input.abstract || ""}". Keywords: ${input.keywords || "none"}. Open access preference: ${input.openAccess ? "yes" : "no"}. Provide top 3 journal recommendations with fit scores.`;
     case "rebuttal":
       return `Generate point-by-point responses to these reviewer comments: "${input.reviewerComments || ""}". For each comment, provide an acknowledgment, evidence-based response, and location of changes.`;
+    // Workflow goal: the backend orchestrates per-step prompts itself.
+    case "research-plan":
+      return `Research goal: "${input.researchGoal || input.query || ""}". Discipline: ${input.discipline || "general"}. Keywords: ${Array.isArray(input.keywords) ? input.keywords.join(", ") : "none"}.`;
   }
 }
 

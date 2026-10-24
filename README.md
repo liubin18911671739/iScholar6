@@ -4,7 +4,7 @@ AI 原生学术科研平台 —— 从研究选题到论文投稿与返修，用
 
 > 平台为**全 Docker、后端单一数据源**架构：Next.js 14 薄 BFF（Auth.js + 签名代理）+ Python FastAPI/LangGraph 后端 + PostgreSQL/pgvector + Redis + Caddy。
 > 旧栈（Dexie/IndexedDB + Supabase + 浏览器直连 DeepSeek）已**完全移除**：`lib/local/*`、`lib/supabase/*`、`lib/lms/*`、`@supabase/*`、`dexie` 均已删除，客户端只经签名 BFF 访问后端。
-> 工程执行状态见 [`TODO.md`](./TODO.md)，锁定决策见 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)；AI 助理指引见 [`AGENTS.md`](./AGENTS.md)。
+> 工程执行状态见 [`TODO.md`](./TODO.md)，锁定决策见 [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md)。
 
 ---
 
@@ -44,12 +44,13 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 | --- | --- | --- |
 | Stage 0 · Docker + Auth | 🟢 | compose（web/backend/worker/postgres/redis/proxy）；Auth.js（Credentials + Postgres）+ Edge `middleware.ts` 守卫；HMAC 服务身份；Alembic + `db/init` auth 表 |
 | Stage 1 · 后端数据 API | 🟢 | `/v1/data/*`（12 资源）+ `/v1/vectors`；`/v1/training/*` 全套（analytics/export/LMS gradebook/consents/evidence）；`/v1/audit`、`/v1/realtime`、`/v1/plugins`；前端数据层 `lib/client/*` + React Query（`@/lib/hooks`） |
-| Stage 2 · Agent 运行时核心 | 🟡 | durable run API（threads/runs/SSE/resume/cancel）+ `AgentHarness` + LangGraph + Postgres checkpointer + worker；DeepSeek `bind_tools` 与 SSE 流式已接入；剩余：状态机契约测试 |
+| Stage 2 · Agent 运行时核心 | 🟡 | durable run API（threads/runs/SSE/resume/cancel）+ `AgentHarness` + LangGraph + Postgres checkpointer + worker；DeepSeek `bind_tools` 与 SSE 流式已接入；状态机契约测试已补；剩余：真实模型 live 冒烟 |
 | Stage 3 · MCP | 🟢 | 工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池 + `/v1/mcp` REST |
 | Stage 4 · 7 个智能体 | 🟢 | 7 张图 + prompts + Pydantic 结构化输出；Agent UI 走后端 `/api/agent` |
 | Stage 5 · 评估 harness | 🟢 | 离线数据集/检查/阈值报告 + `EVAL_MODE=live` + 可选 LLM judge（仓库无 CI） |
-| Stage 6 · Hermes/训练/插件/清理 | 🟡 | Hermes 图、插件按用户 Postgres、遗留直连路由已删除；defer：可检查点训练图、声明式插件工具 |
-| 质量门禁 | 🟢 | `tsc` / `lint` / `vitest`（44 文件 202 用例）/ `build` / 后端 `ruff` + `pytest`（136）/ 评估 `pytest` 全绿 |
+| Stage 6 · Hermes/训练/插件/清理 | 🟢 | Hermes 图、可检查点多轮教练图、按用户声明式插件 MCP 工具、遗留直连路由删除 |
+| Stage 7 · 多智能体协作 | 🟡 | `research-plan` 协作图（双人工门 + 有界返工）+ 前端 WorkflowPanel + worker 租约/心跳/reaper + 协作评测；剩余：真实模型 live 冒烟 |
+| 质量门禁 | 🟢 | `tsc` / `lint` / `vitest`（45 文件 208 用例）/ 后端 `ruff` + `pytest`（206）/ 评估 `pytest`（7）全绿 |
 
 ---
 
@@ -57,8 +58,9 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 - **7 大科研智能体** — TopicScout、LitReview、ResearchDesigner、DataPilot、IMRaDWriter、SubmitMatch、RebuttalShow
 - **模块工作流外壳** — 每个智能体页是全屏工作区：固定顶栏 + 8 步进度条 + AI 免责横幅 + 输入/预览/输出卡片 + 可折叠使用说明书
-- **持久化 Agent 运行** — LangGraph 图 + `AgentHarness`（工具预算、权限、运行事件、幂等产物写入）；SSE 事件流可断线续传
+- **持久化 Agent 运行** — LangGraph 图 + `AgentHarness`（工具预算、权限、运行事件、幂等产物写入）；SSE 事件流可断线续传；worker 租约 + 心跳 + 过期回收保证可靠执行
 - **可恢复 / 可审批** — 运行支持 `waiting_for_input` / `waiting_for_review` 状态与 `resume` / `cancel`
+- **多智能体协作工作流** — `/projects/[projectId]/research-plan` 一键串起选题→综述→设计→质检→终审，内置选题门与终审门两个人工审批点、规则 + LLM 质检与有界返工
 - **模型工具调用 + 流式** — DeepSeek `bind_tools`（模型驱动工具调用）+ `message.delta` 增量输出
 - **MCP 工具** — Crossref、Semantic Scholar、OpenAlex 学术检索 + `ischolar.*` 领域工具
 - **向量检索** — pgvector + 服务端嵌入（`/v1/vectors`，可选 `sentence-transformers`）
@@ -81,7 +83,7 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 | BFF | `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` + `app/api/mcp/[tool]`（`lib/server/backend-proxy.ts`，HMAC 签名 + allowlist） |
 | 后端 | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic |
 | Agent 运行时 | LangGraph + langgraph-checkpoint-postgres + langchain-openai |
-| 数据库 | PostgreSQL 16 + pgvector（Alembic 迁移，12 个，head `20260929_0012`） |
+| 数据库 | PostgreSQL 16 + pgvector（Alembic 迁移，14 个，head `20261023_0014`） |
 | 缓存 / 限流 | Redis 7 |
 | AI 模型 | DeepSeek `deepseek-v4-flash`（回退 `deepseek-chat`） |
 | 反向代理 | Caddy 2（TLS + SSE 反缓冲） |
@@ -174,7 +176,7 @@ pnpm playwright test e2e/<file>  # 单个 E2E
 pnpm exec tsc --noEmit           # 没有 typecheck 脚本；pnpm build 也会做类型检查
 
 # 质量门禁
-pnpm quality-gate                # lint -> vitest -> build -> e2e（本地全绿）
+pnpm quality-gate                # lint -> vitest -> build -> e2e；可选 backend/eval pytest + 离线 eval（Docker 未起时自动跳过）
 
 # Docker 平台
 pnpm docker:up / docker:down     # 完整 compose 栈
@@ -223,7 +225,7 @@ services/
 │   ├── app/storage/              #   文件系统 blob（sha-256、25 MiB 上限）
 │   ├── app/vectors/              #   服务端嵌入（可选依赖）+ backfill worker
 │   ├── app/worker.py             #   agent run worker 入口
-│   └── alembic/versions/         #   ★ 唯一的领域 schema 变更来源（12 个迁移）
+│   └── alembic/versions/         #   ★ 唯一的领域 schema 变更来源（14 个迁移）
 └── eval/                         # 评估 harness（离线数据集 + 检查 + 阈值报告）
 db/init/                          # Postgres 初始化：扩展 + auth 表（users/accounts/...）
 docker/  proxy/  docker-compose.yml  docker-compose.dev.yml
@@ -248,6 +250,8 @@ __tests__/  e2e/                  # 前端测试；后端测试在 services/back
 | 7 | RebuttalShow | 审稿意见文本 / PDF | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目 |
 
 > 智能体页共享 `AgentPageTemplate`，行为定义在 `components/agents/configs/<agent>/` 的按智能体目录，注册表在 `components/agents/`。
+>
+> 此外，`research-plan` 多智能体协作工作流把上述环节串成一条带双人工门的完整链路，见 [特性](#特性)。
 
 ### 添加一个新智能体
 
@@ -288,7 +292,7 @@ pnpm docker:up
 ```
 
 - `proxy`（Caddy）在 80/443 终止 TLS，并将 SSE 关闭缓冲转发到 `web`
-- `migrate` 服务在 backend/worker 启动前自动迁移（当前 12 个 Alembic 迁移，head `20260929_0012`）
+- `migrate` 服务在 backend/worker 启动前自动迁移（当前 14 个 Alembic 迁移，head `20261023_0014`）
 - `worker` 消费后台任务（`SKIP LOCKED` 租约）；`eval` 以 `--profile eval` 启用，服务端嵌入以 `--profile vectors` 启用
 - `storage` 卷挂载到 backend/worker 的 `STORAGE_DIR`，承载附件与脚本 blob
 

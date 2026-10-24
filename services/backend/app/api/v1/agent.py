@@ -224,7 +224,12 @@ async def review_artifact(
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
-    """Approve/reject/apply a run artifact (owner-scoped)."""
+    """Approve/reject/apply a run artifact (owner-scoped).
+
+    When the owning run is waiting for review, an approved/rejected decision
+    also resumes it: the artifact gate is the review itself, so the UI needs a
+    single call and the backend keeps one authoritative state machine.
+    """
     owner_id = identity_uuid(identity)
     artifact = await session.get(Artifact, artifact_id)
     if artifact is None:
@@ -234,15 +239,20 @@ async def review_artifact(
         raise HTTPException(status_code=422, detail="INVALID_ARTIFACT_STATUS")
     artifact.status = body.status
     artifact.reviewed_at = now()
-    sequence = await next_run_sequence(session, run.id)
-    session.add(
-        RunEvent(
-            run_id=run.id,
-            sequence=sequence,
-            type=f"artifact.{body.status}",
-            data={"artifactId": str(artifact.id), "feedback": body.feedback},
-        )
-    )
+    event_data = {"artifactId": str(artifact.id), "feedback": body.feedback}
+    if run.status == RunStatus.WAITING_FOR_REVIEW and body.status in {"approved", "rejected"}:
+        approved = body.status == "approved"
+        run.status = RunStatus.QUEUED
+        run.resume_input = {"approved": approved, "feedback": body.feedback} if body.feedback else {"approved": approved}
+        sequence = await next_run_sequence(session, run.id)
+        session.add(RunEvent(run_id=run.id, sequence=sequence, type="run.resumed", data=event_data))
+    elif run.status in {RunStatus.QUEUED, RunStatus.RUNNING} and body.status in {"approved", "rejected"}:
+        # The decision was already resumed once; a second approve/reject would
+        # conflict with the worker's own finalization.
+        raise HTTPException(status_code=409, detail="RUN_IN_FLIGHT")
+    else:
+        sequence = await next_run_sequence(session, run.id)
+        session.add(RunEvent(run_id=run.id, sequence=sequence, type=f"artifact.{body.status}", data=event_data))
     await session.commit()
     return ok(serialize_artifact(artifact))
 

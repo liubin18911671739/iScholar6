@@ -67,6 +67,8 @@ export interface ResultsProps {
   status: AgentStatus;
   projectId: string;
   fieldState: Record<string, string>;
+  /** Durable run id (present once the backend returned a run). */
+  runId?: string | null;
 }
 
 /** Context passed to onApplyExtra after the standard manuscript block is created. */
@@ -98,6 +100,8 @@ export interface ModuleContentProps {
   projectId: string;
   fieldState: Record<string, string>;
   errorMessage?: string | null;
+  /** Durable run id (present once the backend returned a run). */
+  runId?: string | null;
 }
 
 /** Declarative description of a single agent page (inputs, outputs, apply, tabs). */
@@ -162,6 +166,7 @@ export function AgentPageTemplate({ config }: { config: AgentPageConfig }) {
     results,
     errorMessage,
     parsedResults,
+    runId,
     handleRun,
     handleApprove,
     handleReject,
@@ -422,6 +427,7 @@ export function AgentPageTemplate({ config }: { config: AgentPageConfig }) {
           status={status}
           projectId={projectId}
           fieldState={fieldState}
+          runId={runId}
         />
       )}
       {results && !config.ResultsComponent && (
@@ -439,6 +445,7 @@ export function AgentPageTemplate({ config }: { config: AgentPageConfig }) {
       projectId={projectId}
       fieldState={fieldState}
       errorMessage={errorMessage}
+      runId={runId}
     />
   ) : undefined;
 

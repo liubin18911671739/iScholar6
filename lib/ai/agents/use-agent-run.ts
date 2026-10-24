@@ -16,14 +16,14 @@
 
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { runAgentStream } from "@/lib/ai/agents";
 import { getAgentMeta, isBuiltInAgent, type AgentId, type BuiltInAgentId } from "@/lib/ai/agents/registry";
 import { parseAgentOutput, type AgentStructuredOutput } from "@/lib/ai/parse-agent-output";
 import type { LocalAiConsent } from "@/lib/types/domain";
 import { writeAuditEntry } from "@/lib/audit/ledger";
-import { latestApprovedUsage, reviewLatestArtifact } from "@/lib/client/agents";
+import { getRun, latestApprovedUsage, reviewLatestArtifact } from "@/lib/client/agents";
 import { getPluginAgent } from "@/lib/plugins/registry";
 import type { AgentStatus } from "@/components/agents/agent-workspace";
 
@@ -66,6 +66,7 @@ const AGENT_ESTIMATED_TOKENS: Record<BuiltInAgentId, number> = {
   write: 1500,
   submit: 1000,
   rebuttal: 1200,
+  "research-plan": 6000,
 };
 
 // Resolve the fallback token estimate for a built-in or plugin agent.
@@ -93,6 +94,7 @@ interface UseAgentRunReturn {
 export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAgentRunReturn {
   const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
   const searchParams = useSearchParams();
+  const resumeRunId = searchParams?.get("runId") ?? null;
   const projectId = projectIdOverride ?? urlProjectId ?? "";
   const trainingContext = useMemo((): {
     trainingTaskId?: string;
@@ -110,13 +112,37 @@ export function useAgentRun(agentId: AgentId, projectIdOverride?: string): UseAg
     const programId = searchParams?.get("programId") ?? undefined;
     return { trainingTaskId, mode, programId };
   }, [searchParams]);
-  const [status, setStatus] = useState<AgentStatus>("idle");
+  const [status, setStatus] = useState<AgentStatus>(resumeRunId ? "running" : "idle");
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [parsedResults, setParsedResults] = useState<AgentStructuredOutput | null>(null);
-  const [runId, setRunId] = useState<string | null>(null);
+  const [runId, setRunId] = useState<string | null>(resumeRunId);
   const agentName = getAgentMeta(agentId)?.name ?? agentId;
+
+  // A durable run can be reopened from its URL after a refresh or interruption.
+  // Restore its latest artifact and lifecycle state; WorkflowPanel then polls
+  // the backend for subsequent stages and human approval gates.
+  useEffect(() => {
+    if (!resumeRunId) return;
+    let cancelled = false;
+    void getRun(resumeRunId).then((run) => {
+      if (cancelled) return;
+      const artifactText = run.artifacts[run.artifacts.length - 1]?.content?.text;
+      if (artifactText) setResults(artifactText);
+      if (run.status === "failed") setStatus("failed");
+      else if (run.status === "succeeded") setStatus("approved");
+      else if (run.status === "waiting_for_review") setStatus("needs_review");
+      else setStatus("running");
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setErrorMessage(formatAgentError(error));
+      setStatus("failed");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeRunId]);
 
   // Start a run, reset state, and stream results into local state.
   const handleRun = useCallback(

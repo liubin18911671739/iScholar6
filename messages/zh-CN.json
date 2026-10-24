@@ -52,7 +52,8 @@
     "tools": "工具",
     "literatureAnalysis": "文献分析",
     "paperPolishing": "论文润色",
-    "journalSelection": "期刊选择"
+    "journalSelection": "期刊选择",
+    "researchPlan": "多智能体方案"
   },
   "topbar": {
     "localMode": "本地",
@@ -147,7 +148,8 @@
       "data": "AI 生成的分析结果仅供参考，不作为医学诊断或最终决策依据。",
       "write": "AI 生成内容仅供参考，不代表最终观点；采用前请进行人工专业审阅以确保学术规范。",
       "submit": "AI 推荐的期刊匹配仅供参考，投稿前请核对期刊范围与格式要求。",
-      "rebuttal": "AI 生成的回复信仅供参考，请核实对审稿意见的理解并保持学术诚信。"
+      "rebuttal": "AI 生成的回复信仅供参考，请核实对审稿意见的理解并保持学术诚信。",
+      "research-plan": "多智能体将按阶段生成研究方案。请核对检索证据、研究方法与质量检查结果。"
     },
     "action": {
       "topic": "生成候选选题",
@@ -156,7 +158,8 @@
       "data": "运行数据分析",
       "write": "生成章节内容",
       "submit": "生成投稿材料",
-      "rebuttal": "生成回复信"
+      "rebuttal": "生成回复信",
+      "research-plan": "启动协作方案"
     },
     "cardInput": "输入配置",
     "cardInputHint": "填写参数后生成",
@@ -820,6 +823,11 @@
       "authorResponse": "作者回复",
       "changeLocation": "修改位置",
       "supportingEvidence": "支持证据"
+    },
+    "researchPlan": {
+      "empty": "暂无协作方案",
+      "emptyHint": "运行一次 research-plan 工作流后，最终方案会显示在这里。",
+      "quality": "质检"
     }
   },
   "moduleAssistant": {
@@ -1551,6 +1559,50 @@
           }
         }
       }
+    }
+  },
+  "researchPlan": {
+    "inputs": {
+      "researchGoal": "研究目标",
+      "researchGoalPlaceholder": "例如：面向教育场景的多智能体文献综述工具，希望研究其对科研效率的影响",
+      "discipline": "学科",
+      "disciplinePlaceholder": "例如：教育技术",
+      "keywords": "关键词（逗号分隔）",
+      "keywordsPlaceholder": "文献综述, 学习分析, 大模型",
+      "hint": "提交后，系统将自动协作完成选题、文献综述与研究设计，并在关键节点请求你的确认。"
+    },
+    "stream": {
+      "live": "实时输出"
+    },
+    "stages": {
+      "topic": "选题",
+      "litreview": "文献综述",
+      "design": "研究设计",
+      "quality": "质量检查",
+      "summary": "方案汇总"
+    },
+    "quality": {
+      "verdict": "质检结论",
+      "pass": "通过",
+      "revise": "已返工",
+      "blocked": "证据不足"
+    },
+    "gateTopic": {
+      "title": "请确认研究方向",
+      "selected": "当前选择",
+      "select": "选定此方向",
+      "reject": "终止本次协作"
+    },
+    "gateFinal": {
+      "title": "请确认最终科研方案",
+      "approve": "批准并应用",
+      "reject": "不同意"
+    },
+    "status": {
+      "working": "多智能体协作执行中…",
+      "done": "协作完成，产物已入库。",
+      "failed": "运行失败。",
+      "cancelled": "已取消。"
     }
   }
 }

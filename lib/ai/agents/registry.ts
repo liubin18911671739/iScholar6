@@ -23,6 +23,7 @@ export const BUILTIN_AGENT_IDS = [
   "write",
   "submit",
   "rebuttal",
+  "research-plan",
 ] as const;
 
 /** Union of the built-in agent ids derived from {@link BUILTIN_AGENT_IDS}. */
@@ -86,6 +87,11 @@ export const AGENT_META: Record<BuiltInAgentId, AgentMeta> = {
   rebuttal: {
     name: "RebuttalShow",
     description: "审稿意见回复与修改",
+  },
+  "research-plan": {
+    name: "ResearchPlan",
+    description: "多智能体科研方案协作：选题→文献→设计→质检→汇总",
+    contextFrom: [],
   },
 };
 

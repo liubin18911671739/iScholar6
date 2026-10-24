@@ -52,7 +52,8 @@
     "tools": "Tools",
     "literatureAnalysis": "Literature Analysis",
     "paperPolishing": "Paper Polishing",
-    "journalSelection": "Journal Selection"
+    "journalSelection": "Journal Selection",
+    "researchPlan": "Research Plan"
   },
   "topbar": {
     "localMode": "Local",
@@ -147,7 +148,8 @@
       "data": "AI-generated analysis is for reference only and is not a medical diagnosis or decision basis.",
       "write": "AI content is for reference only. Conduct manual expert review before adoption to ensure academic standards.",
       "submit": "AI journal matches are advisory. Verify journal scope and formatting before submission.",
-      "rebuttal": "AI response letters are for reference. Verify your understanding of reviewer comments and maintain integrity."
+      "rebuttal": "AI response letters are for reference. Verify your understanding of reviewer comments and maintain integrity.",
+      "research-plan": "Multiple agents build a research plan in stages. Verify the retrieved evidence, methods, and quality-check findings."
     },
     "action": {
       "topic": "Generate Topics",
@@ -156,7 +158,8 @@
       "data": "Run Analysis",
       "write": "Generate Section",
       "submit": "Generate Materials",
-      "rebuttal": "Generate Response"
+      "rebuttal": "Generate Response",
+      "research-plan": "Run Research Plan"
     },
     "cardInput": "Input",
     "cardInputHint": "Fill in and generate",
@@ -820,6 +823,11 @@
       "authorResponse": "Author Response",
       "changeLocation": "Change Location",
       "supportingEvidence": "Supporting Evidence"
+    },
+    "researchPlan": {
+      "empty": "No research plan yet",
+      "emptyHint": "Run the research-plan workflow once; the synthesized plan appears here.",
+      "quality": "quality"
     }
   },
   "moduleAssistant": {
@@ -1551,6 +1559,50 @@
           }
         }
       }
+    }
+  },
+  "researchPlan": {
+    "inputs": {
+      "researchGoal": "Research goal",
+      "researchGoalPlaceholder": "e.g. A multi-agent literature review tool for education, studying its effect on research efficiency",
+      "discipline": "Discipline",
+      "disciplinePlaceholder": "e.g. Educational Technology",
+      "keywords": "Keywords (comma separated)",
+      "keywordsPlaceholder": "literature review, learning analytics, LLM",
+      "hint": "After submitting, agents collaborate on topic selection, literature, and design, and ask for confirmation at key gates."
+    },
+    "stream": {
+      "live": "Live output"
+    },
+    "stages": {
+      "topic": "Topic",
+      "litreview": "Literature",
+      "design": "Design",
+      "quality": "Quality",
+      "summary": "Plan"
+    },
+    "quality": {
+      "verdict": "Quality verdict",
+      "pass": "pass",
+      "revise": "revised",
+      "blocked": "blocked"
+    },
+    "gateTopic": {
+      "title": "Confirm the research direction",
+      "selected": "Selected",
+      "select": "Select",
+      "reject": "Abort workflow"
+    },
+    "gateFinal": {
+      "title": "Confirm the final research plan",
+      "approve": "Approve & apply",
+      "reject": "Reject"
+    },
+    "status": {
+      "working": "Multi-agent workflow running…",
+      "done": "Workflow finished; artifacts saved.",
+      "failed": "Run failed.",
+      "cancelled": "Cancelled."
     }
   }
 }

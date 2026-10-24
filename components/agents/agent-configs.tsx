@@ -31,3 +31,5 @@ export { WRITE_CONFIG } from "./configs/write/config";
 export { SUBMIT_CONFIG } from "./configs/submit/config";
 /** Reviewer rebuttal agent configuration. */
 export { REBUTTAL_CONFIG } from "./configs/rebuttal/config";
+/** Multi-agent research-plan workflow configuration. */
+export { RESEARCH_PLAN_CONFIG } from "./configs/research-plan/config";

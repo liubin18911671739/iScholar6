@@ -34,6 +34,21 @@ class Settings(BaseSettings):
     # When true, creating a run requires an `ai_consents_v2` row with services.
     # Default off: the web BFF verifies consent before forwarding (migration period).
     agent_require_consent: bool = False
+    # Model call parameters (ChatOpenAI). Per-agent overrides can be added on
+    # top of these defaults later without changing graph code.
+    model_temperature: float = 0.3
+    model_timeout_seconds: float = 120.0
+    model_max_retries: int = 2
+    # Per-run model token budget (best effort, per worker attempt). 0 disables.
+    agent_max_tokens_per_run: int = 400_000
+
+    # Worker lease: how long a claim stays valid, how often the worker extends
+    # it, when the reaper scans for expired leases, and how many times a run
+    # may be re-queued after a worker crash before it is marked failed.
+    agent_lease_seconds: int = 300
+    agent_heartbeat_seconds: int = 60
+    agent_reap_interval_seconds: int = 15
+    agent_max_attempts: int = 3
 
     # MCP: built-in tools run in-process; `mcp_servers` is a JSON list of
     # {"name": str, "url": str} streamable-HTTP endpoints for the client pool.
@@ -69,9 +84,13 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _reject_insecure_defaults(self) -> "Settings":
-        """Fail fast when production boots with the shipped placeholder secret."""
+        """Fail fast when production boots with shipped placeholder secrets."""
         if self.is_production and self.agent_service_token == "dev-insecure-change-me":
             raise ValueError("AGENT_SERVICE_TOKEN must be set to a non-default value in production")
+        # Never serve deterministic placeholder output in production: without a
+        # key the model would silently fall back to FakeModel.
+        if self.is_production and not self.agent_model_fake and not self.deepseek_api_key:
+            raise ValueError("DEEPSEEK_API_KEY must be set in production unless AGENT_MODEL_FAKE=true")
         return self
 
 

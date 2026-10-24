@@ -34,6 +34,19 @@ function runOptional(label, command) {
 
 run("lint", "pnpm lint");
 run("vitest", "pnpm vitest run");
+
+// Best-effort Python-side regression (needs `uv` + a venv; checkmarks the
+// backend/eval suites without making Docker a hard prerequisite here).
+runOptional(
+  "backend pytest + ruff",
+  "cd services/backend && uv run ruff check app tests && uv run pytest -q"
+);
+runOptional(
+  "eval pytest + ruff",
+  "cd services/eval && uv run ruff check . && uv run pytest -q"
+);
+runOptional("agent eval offline", "pnpm agent:eval");
+
 run("build", "pnpm build");
 
 // E2E authenticates through Auth.js credentials, which needs the compose

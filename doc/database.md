@@ -60,6 +60,8 @@
 | `20260929_0010_consent_project_nullable` | `ai_consents_v2.project_id` 允许为空（训练提交按 program 记录同意） |
 | `20260929_0011_agent_idempotency_owner_scoped` | 幂等键改为 `UNIQUE(owner_id, idempotency_key)` |
 | `20260929_0012_drop_plugin_mcp_tools` | 删除未接线的 `plugin_mcp_tools` 表 |
+| `20260929_0013_vector_hnsw` | `bib_items`/`rag_chunks.embedding` 建 HNSW 余弦索引 |
+| `20261023_0014_run_lease` | `agent_runs_v2` 加 `lease_token`/`lease_expires_at`/`attempt`（worker 租约栅栏与回收）+ 部分 lease 索引 |
 
 > 新增迁移后同步更新本表与 `doc/architecture.md` 的数据层说明。
 

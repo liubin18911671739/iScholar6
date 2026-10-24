@@ -12,6 +12,7 @@ a tool; graphs run it through :class:`~app.agents.harness.AgentHarness`.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -47,6 +48,9 @@ _FAKE_PAYLOADS: dict[str, dict[str, Any]] = {
     "write": {"references": [{"key": "smith2024", "title": "Paper", "year": 2024}], "section": "introduction", "wordCount": 120},
     "submit": {"journals": [{"name": "Journal", "fitScore": 85, "impactFactor": 4.2, "reviewTimeline": "6-8 weeks", "openAccess": True}], "checklist": ["Prepare cover letter"]},
     "rebuttal": {"responses": [{"commentNumber": 1, "comment": "Comment", "response": "Response", "changeLocation": "Methods"}]},
+    # research-plan workflow roles (quality gate + plan synthesizer).
+    "quality": {"verdict": "pass", "issues": []},
+    "summary": {"researchQuestion": "RQ", "hypotheses": ["H1: ..."], "openMaterials": ["Ethics approval"]},
 }
 
 
@@ -90,11 +94,20 @@ class StreamResult:
 # Called for each streamed token; the graph uses it to emit ``message.delta``.
 DeltaSink = Callable[[str], Awaitable[None]]
 
+# Provider-neutral chat message shape used by the tool round-trip protocol:
+# {"role": "system"|"user"|"assistant"|"tool", "content": str,
+#  "tool_calls"?: [{"id", "name", "arguments"}], "tool_call_id"?: str}
+ModelMessage = dict[str, Any]
+
 
 class AgentModel(Protocol):
     """Async text-generation interface used by graph nodes."""
 
     async def generate(self, system: str, user: str, tools: list[ToolSpec] | None = None) -> ModelResult: ...
+
+    async def generate_messages(
+        self, messages: list[ModelMessage], tools: list[ToolSpec] | None = None
+    ) -> ModelResult: ...
 
     async def stream(self, system: str, user: str, on_delta: DeltaSink) -> StreamResult: ...
 
@@ -112,6 +125,36 @@ def _openai_tool(spec: ToolSpec) -> dict[str, Any]:
             "parameters": spec.parameters or {"type": "object", "properties": {}},
         },
     }
+
+
+_WIRE_NAME_FORBIDDEN = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _wire_tools(tools: list[ToolSpec]) -> tuple[list[ToolSpec], dict[str, str]]:
+    """Rewrite tool names onto the OpenAI wire alphabet (``^[A-Za-z0-9_-]+$``).
+
+    Registry names are namespaced with dots (``scholar.search``,
+    ``mcp.<server>.<tool>``), which providers reject. Every tool gets a
+    sanitized wire alias; ``aliases`` maps each wire name back to its original
+    for model-returned tool calls and outgoing history echoes.
+    """
+    aliases: dict[str, str] = {}
+    wire: list[ToolSpec] = []
+    used: set[str] = set()
+    for spec in tools:
+        base = _WIRE_NAME_FORBIDDEN.sub("_", spec.name)
+        safe, suffix = base, 1
+        while safe in used:
+            safe = f"{base}_{suffix}"
+            suffix += 1
+        used.add(safe)
+        aliases[safe] = spec.name
+        wire.append(ToolSpec(name=safe, description=spec.description, parameters=spec.parameters))
+    return wire, aliases
+
+
+def _reverse_aliases(aliases: dict[str, str]) -> dict[str, str]:
+    return {original: wire for wire, original in aliases.items()}
 
 
 def _text_parts(content: Any) -> list[str]:
@@ -155,6 +198,24 @@ class FakeModel:
             )
         return self._final()
 
+    async def generate_messages(
+        self, messages: list[ModelMessage], tools: list[ToolSpec] | None = None
+    ) -> ModelResult:
+        user_content = ""
+        for message in reversed(messages):
+            if message.get("role") == "user":
+                user_content = str(message.get("content") or "")
+                break
+        if tools and not any(message.get("role") == "tool" for message in messages):
+            tool = tools[0]
+            return ModelResult(
+                text=f"Calling {tool.name}.",
+                token_in=10,
+                token_out=5,
+                tool_calls=[ToolCall(name=tool.name, arguments={"query": user_content[:200]}, id="fake-tool-call-1")],
+            )
+        return self._final()
+
     async def stream(self, system: str, user: str, on_delta: DeltaSink) -> StreamResult:
         result = await self.generate(system, user)
         for chunk in _chunk_text(result.text, 24):
@@ -165,21 +226,35 @@ class FakeModel:
 class DeepSeekModel:
     """DeepSeek chat model via langchain-openai (tool calling + streaming)."""
 
-    def __init__(self, model: str, base_url: str, api_key: str) -> None:
+    def __init__(
+        self,
+        model: str,
+        base_url: str,
+        api_key: str,
+        *,
+        temperature: float = 0.3,
+        timeout_seconds: float = 120.0,
+        max_retries: int = 2,
+    ) -> None:
         from langchain_openai import ChatOpenAI
 
-        self._llm = ChatOpenAI(model=model, base_url=base_url, api_key=api_key, temperature=0.3, stream_usage=True)
+        self._llm = ChatOpenAI(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            temperature=temperature,
+            timeout=timeout_seconds,
+            max_retries=max_retries,
+            stream_usage=True,
+        )
 
-    async def generate(self, system: str, user: str, tools: list[ToolSpec] | None = None) -> ModelResult:
-        from langchain_core.messages import HumanMessage, SystemMessage
-
-        llm = self._llm.bind_tools([_openai_tool(tool) for tool in tools]) if tools else self._llm
-        response = await llm.ainvoke([SystemMessage(content=system), HumanMessage(content=user)])
+    def _extract(self, response: Any, aliases: dict[str, str] | None = None) -> ModelResult:
         content = response.content if isinstance(response.content, str) else json.dumps(response.content)
         usage = getattr(response, "usage_metadata", None) or {}
+        mapping = aliases or {}
         calls = [
             ToolCall(
-                name=str(call.get("name") or ""),
+                name=mapping.get(str(call.get("name") or ""), str(call.get("name") or "")),
                 arguments=dict(call.get("args") or {}),
                 id=str(call.get("id") or ""),
             )
@@ -192,6 +267,65 @@ class DeepSeekModel:
             token_out=int(usage.get("output_tokens", 0) or 0),
             tool_calls=calls,
         )
+
+    async def generate(self, system: str, user: str, tools: list[ToolSpec] | None = None) -> ModelResult:
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        messages: list[ModelMessage] = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        if tools:
+            return await self.generate_messages(messages, tools=tools)
+        response = await self._llm.ainvoke([SystemMessage(content=system), HumanMessage(content=user)])
+        return self._extract(response)
+
+    async def generate_messages(
+        self, messages: list[ModelMessage], tools: list[ToolSpec] | None = None
+    ) -> ModelResult:
+        from langchain_core.messages import (
+            AIMessage,
+            HumanMessage,
+            SystemMessage,
+            ToolMessage,
+        )
+
+        wire_tools, aliases = _wire_tools(tools) if tools else ([], {})
+        to_wire = _reverse_aliases(aliases)
+        chain_messages: list[Any] = []
+        for message in messages:
+            role = message.get("role")
+            if role == "system":
+                chain_messages.append(SystemMessage(content=message.get("content") or ""))
+            elif role == "user":
+                chain_messages.append(HumanMessage(content=message.get("content") or ""))
+            elif role == "assistant":
+                chain_messages.append(
+                    AIMessage(
+                        content=message.get("content") or "",
+                        tool_calls=[
+                            {
+                                "name": to_wire.get(call.get("name") or "", call.get("name") or ""),
+                                "args": call.get("arguments") or {},
+                                "id": call.get("id") or "call_0",
+                            }
+                            for call in message.get("tool_calls") or []
+                        ],
+                    )
+                )
+            elif role == "tool":
+                content = message.get("content") or ""
+                name = message.get("name")
+                chain_messages.append(
+                    ToolMessage(
+                        content=content,
+                        name=to_wire.get(name, name) if name else None,
+                        tool_call_id=message.get("tool_call_id") or "",
+                    )
+                )
+        llm = self._llm.bind_tools([_openai_tool(tool) for tool in wire_tools]) if wire_tools else self._llm
+        response = await llm.ainvoke(chain_messages)
+        return self._extract(response, aliases)
 
     async def stream(self, system: str, user: str, on_delta: DeltaSink) -> StreamResult:
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -216,4 +350,11 @@ def get_model(agent: str) -> AgentModel:
     if fake or not settings.deepseek_api_key:
         return FakeModel(agent)
     model = settings.deepseek_model or "deepseek-chat"
-    return DeepSeekModel(model=model, base_url=settings.deepseek_api_url, api_key=settings.deepseek_api_key)
+    return DeepSeekModel(
+        model=model,
+        base_url=settings.deepseek_api_url,
+        api_key=settings.deepseek_api_key,
+        temperature=settings.model_temperature,
+        timeout_seconds=settings.model_timeout_seconds,
+        max_retries=settings.model_max_retries,
+    )

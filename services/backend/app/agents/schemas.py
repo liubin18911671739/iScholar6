@@ -133,6 +133,11 @@ SCHEMAS: dict[str, type[BaseModel]] = {
 }
 
 
+def output_schema(agent: str) -> type[BaseModel] | None:
+    """The agent's structured-output schema, or None for free-form agents."""
+    return SCHEMAS.get(agent)
+
+
 def parse_agent_output(agent: str, text: str) -> dict[str, Any] | None:
     """Extract and validate the last JSON fence; return a dict or None."""
     schema = SCHEMAS.get(agent)

@@ -198,6 +198,11 @@ async def test_worker_run_interrupts_then_resumes(
     claimed.resume_input = {"approved": True}
     await db_session.commit()
 
+    # Workers re-claim before resuming; the claim issues a fresh lease token.
+    claimed = await claim_next_run(db_session)
+    await db_session.commit()
+    assert claimed is not None and claimed.id == run.id
+
     second = await execute_run(db_session, claimed)
     await db_session.commit()
     assert second == {"interrupted": False}

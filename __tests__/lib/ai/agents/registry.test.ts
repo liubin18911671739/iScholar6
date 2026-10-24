@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { AGENT_IDS, AGENT_META, isValidAgent, type AgentId } from "@/lib/ai/agents/registry";
 
 describe("AGENT_IDS", () => {
-  it("has exactly 7 entries", () => {
-    expect(AGENT_IDS).toHaveLength(7);
+  it("has exactly 8 entries (7 specialists + the research-plan workflow)", () => {
+    expect(AGENT_IDS).toHaveLength(8);
   });
 
   it("contains all expected agent IDs", () => {
@@ -15,6 +15,7 @@ describe("AGENT_IDS", () => {
       "write",
       "submit",
       "rebuttal",
+      "research-plan",
     ]);
   });
 });

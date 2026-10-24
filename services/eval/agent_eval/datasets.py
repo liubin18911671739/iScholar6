@@ -62,14 +62,60 @@ def _scores_in_range(list_key: str, score_keys: list[str], low: int, high: int) 
     return check
 
 
+_REQUIRED_PLAN_STEPS = {"topic", "litreview", "design"}
+
+
+def _plan_steps_covered() -> Check:
+    """Every mandatory workflow step ran at least once."""
+
+    def check(_expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
+        steps = {step.get("step") for step in actual.get("steps", []) if isinstance(step, dict)}
+        missing = _REQUIRED_PLAN_STEPS - steps
+        return [f"workflow step missing from run: {step}" for step in sorted(missing)]
+
+    return check
+
+
+_VALID_VERDICTS = {"pass", "revise", "blocked"}
+
+
+def _plan_quality_verdict() -> Check:
+    """The quality gate ran and produced a known verdict."""
+
+    def check(_expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
+        quality = actual.get("quality")
+        verdict = quality.get("verdict") if isinstance(quality, dict) else None
+        if verdict not in _VALID_VERDICTS:
+            return [f"quality verdict unknown: {verdict!r}"]
+        return []
+
+    return check
+
+
+def _plan_final_artifact() -> Check:
+    """The workflow synthesized a final plan with a topic + text."""
+
+    def check(_expected: dict[str, Any], actual: dict[str, Any]) -> list[str]:
+        final = actual.get("final")
+        if not isinstance(final, dict):
+            return ["workflow final plan missing"]
+        return [f"final missing key: {key}" for key in ("text", "selectedTopic") if key not in final]
+
+    return check
+
+
 CHECKS: dict[str, Check] = {
     "topic.three": _min_list_length("topics", 3),
     "topic.scores": _scores_in_range("topics", ["novelty", "value", "feasibility"], 1, 10),
     "litreview.papers": _min_list_length("papers", 1),
     "design.feasibility": _require_keys(["feasibility", "hypotheses"]),
+    "data.scripts": _min_list_length("scripts", 1),
     "write.references": _require_keys(["references", "section"]),
     "submit.journals": _min_list_length("journals", 3),
     "rebuttal.responses": _min_list_length("responses", 1),
+    "plan.steps": _plan_steps_covered(),
+    "plan.qualityVerdict": _plan_quality_verdict(),
+    "plan.finalArtifact": _plan_final_artifact(),
 }
 
 
@@ -137,6 +183,20 @@ DATASETS: list[EvalCase] = [
         expected={"responses": 1},
         checks=["rebuttal.responses"],
     ),
+    EvalCase(
+        id="data-basic",
+        agent="data",
+        input={"dataSource": "survey", "collectionMethod": "questionnaire"},
+        expected={"scripts": 1},
+        checks=["data.scripts"],
+    ),
+    EvalCase(
+        id="research-plan-workflow",
+        agent="research-plan",
+        input={"researchGoal": "Multi-agent literature tooling for education", "discipline": "EdTech", "keywords": ["llm"]},
+        expected={"steps": 3, "quality": True, "final": True},
+        checks=["plan.steps", "plan.qualityVerdict", "plan.finalArtifact"],
+    ),
 ]
 
 
@@ -156,4 +216,16 @@ def recorded_output(case: EvalCase) -> dict[str, Any]:
         return {"journals": [{"name": f"J{i}", "fitScore": 80} for i in range(3)], "checklist": ["c"]}
     if case.agent == "rebuttal":
         return {"responses": [{"commentNumber": 1, "comment": "c", "response": "r"}]}
+    if case.agent == "research-plan":
+        return {
+            "steps": [
+                {"step": step, "role": step, "kind": kind, "artifactId": "a-" + step}
+                for step, kind in (("topic", "topic_proposal"), ("litreview", "literature_brief"), ("design", "research_design"))
+            ],
+            "quality": {"verdict": "pass", "issues": []},
+            "final": {
+                "text": "# Research plan\n\nDeterministic recorded workflow plan.",
+                "selectedTopic": "Topic 1",
+            },
+        }
     return {}

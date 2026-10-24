@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from app.agents.graphs import data, design, hermes, litreview, rebuttal, submit, topic, write
+from app.agents.graphs import data, design, hermes, litreview, rebuttal, research_plan, submit, topic, write
 from app.agents.graphs._common import AgentGraphConfig
 from app.agents.harness import AgentHarness
 
-# Accepted run agents: built-ins, coach (training), or plugin agent ids `p.<plugin>.<key>`.
+# Accepted run agents: built-ins, the research-plan workflow, coach (training),
+# or plugin agent ids `p.<plugin>.<key>`.
 AGENT_ID_PATTERN = (
-    r"^(orchestrator|topic|litreview|design|data|write|submit|rebuttal|hermes|coach)$"
+    r"^(orchestrator|topic|litreview|design|data|write|submit|rebuttal|hermes|research-plan|coach)$"
     r"|^p\.[a-z0-9][a-z0-9_\-]*\.[A-Za-z0-9][A-Za-z0-9_\-]*$"
 )
 
@@ -22,6 +23,7 @@ _BUILDERS = {
     "submit": submit.build,
     "rebuttal": rebuttal.build,
     "hermes": hermes.build,
+    "research-plan": research_plan.build,
 }
 
 CONFIGS: dict[str, AgentGraphConfig] = {
@@ -34,6 +36,7 @@ CONFIGS: dict[str, AgentGraphConfig] = {
     "submit": submit.CONFIG,
     "rebuttal": rebuttal.CONFIG,
     "hermes": hermes.CONFIG,
+    "research-plan": research_plan.CONFIG,
 }
 
 DEFAULT_AGENT = "topic"

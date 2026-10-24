@@ -126,7 +126,10 @@ const RebuttalSchema = z.object({
 // ── Schema Registry ────────────────────────────────────────────────────
 
 // Maps each built-in agent id to its validation schema.
-const SCHEMAS: Record<BuiltInAgentId, z.ZodTypeAny> = {
+// research-plan is a multi-step workflow: its artifacts carry backend-validated
+// `structured` payloads already, so it has no client-side fence schema (the
+// parser returns null for it).
+const SCHEMAS: Partial<Record<BuiltInAgentId, z.ZodTypeAny>> = {
   topic: TopicSchema,
   litreview: LitReviewSchema,
   design: DesignSchema,

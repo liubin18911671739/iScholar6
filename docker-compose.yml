@@ -58,6 +58,11 @@ services:
       target: vectors
     env_file:
       - .env
+    # Docker Desktop DNS forwarding can fail under host VPNs/TUN proxies;
+    # explicit resolvers keep model API calls working. Override via env.
+    dns:
+      - ${CONTAINER_DNS_PRIMARY:-223.5.5.5}
+      - ${CONTAINER_DNS_FALLBACK:-8.8.8.8}
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
       HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
@@ -92,6 +97,10 @@ services:
       target: vectors
     env_file:
       - .env
+    # Same egress requirement as backend (model + tool API calls).
+    dns:
+      - ${CONTAINER_DNS_PRIMARY:-223.5.5.5}
+      - ${CONTAINER_DNS_FALLBACK:-8.8.8.8}
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
       HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
@@ -161,6 +170,10 @@ services:
       context: ./services/eval
     env_file:
       - .env
+    # EVAL_JUDGE calls DeepSeek directly.
+    dns:
+      - ${CONTAINER_DNS_PRIMARY:-223.5.5.5}
+      - ${CONTAINER_DNS_FALLBACK:-8.8.8.8}
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://ischolar:ischolar@postgres:5432/ischolar}
     depends_on:

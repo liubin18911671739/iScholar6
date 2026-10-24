@@ -70,4 +70,27 @@ describe("subscribeRunEvents", () => {
     expect(unsubscribe).toBeTypeOf("function");
     expect(() => unsubscribe()).not.toThrow();
   });
+
+  it("relays workflow step and gate events through onEvent", () => {
+    const seen: Array<[string, Record<string, unknown>]> = [];
+    const unsubscribe = subscribeRunEvents("run-3", {
+      onEvent: (type, data) => seen.push([type, data]),
+    });
+
+    const source = FakeEventSource.instances[0];
+    source.emit("step.started", { step: "litreview", role: "litreview" });
+    source.emit("step.completed", { step: "litreview", artifactId: "a1" });
+    source.emit("run.interrupted", { interrupt: [{ kind: "workflow_gate", stage: "topic" }] });
+    source.emit("message.delta", { text: "text" });
+    source.emit("end", { status: "waiting_for_review" });
+
+    const types = seen.map(([type]) => type);
+    expect(types).toEqual(expect.arrayContaining(["step.started", "step.completed", "run.interrupted"]));
+    expect(seen.find(([type]) => type === "run.interrupted")?.[1]).toEqual({
+      interrupt: [{ kind: "workflow_gate", stage: "topic" }],
+    });
+    // The terminal event closes the stream; step events are not duplicated there.
+    expect(types).not.toContain("end");
+    unsubscribe();
+  });
 });

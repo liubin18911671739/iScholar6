@@ -84,9 +84,22 @@ def evaluate(
     )
 
 
+def selected_cases() -> list[EvalCase]:
+    """Cases to evaluate; ``EVAL_CASES`` (comma-separated ids) narrows the suite."""
+    raw = os.environ.get("EVAL_CASES", "")
+    wanted = {item.strip() for item in raw.split(",") if item.strip()}
+    if not wanted:
+        return DATASETS
+    selected = [case for case in DATASETS if case.id in wanted]
+    missing = wanted - {case.id for case in selected}
+    if missing:
+        raise ValueError(f"unknown EVAL_CASES ids: {', '.join(sorted(missing))}")
+    return selected
+
+
 def build_report(threshold: float = DEFAULT_THRESHOLD) -> EvalReport:
     """Offline report over recorded outputs (deterministic, no network)."""
-    return evaluate(DATASETS, recorded_output, threshold=threshold, mode="offline")
+    return evaluate(selected_cases(), recorded_output, threshold=threshold, mode="offline")
 
 
 def main() -> int:
@@ -96,7 +109,7 @@ def main() -> int:
     if mode == "live":
         from agent_eval.live import run_live
 
-        report = run_live(threshold=threshold)
+        report = run_live(threshold=threshold, cases=selected_cases())
     else:
         report = build_report(threshold=threshold)
     print(json.dumps(asdict(report), indent=2, ensure_ascii=False))

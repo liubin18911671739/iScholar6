@@ -95,3 +95,10 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/v1")
+
+if settings.mcp_enabled:
+    # Serve the built-in tools over real MCP (streamable HTTP) at /mcp.
+    # `ischolar.*` stays REST-only (identity-scoped, see app/api/v1/mcp.py).
+    from app.mcp.server import build_mcp_http_app
+
+    app.mount("/mcp", build_mcp_http_app())

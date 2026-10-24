@@ -146,6 +146,9 @@ export function primaryStageForAgent(agentId: string): number {
       return 7;
     case "rebuttal":
       return 8;
+    // Multi-agent workflow — outside the linear stepper.
+    case "research-plan":
+      return 0;
   }
 }
 

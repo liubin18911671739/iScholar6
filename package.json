@@ -15,6 +15,7 @@
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "agent:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up backend",
+    "roadshow:demo": "node scripts/roadshow-rehearsal.mjs --demo",
     "agent:test": "docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm backend pytest",
     "agent:eval": "docker compose --profile eval run --rm eval"
   },
