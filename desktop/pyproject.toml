@@ -1,0 +1,19 @@
+[project]
+name = "ischolar-desktop"
+version = "0.1.0"
+description = "PySide6 local desktop interface for iScholar"
+requires-python = ">=3.12"
+dependencies = ["PySide6-Essentials>=6.7", "pypdf>=5.0"]
+
+[project.optional-dependencies]
+macos-build = ["pyinstaller>=6.10"]
+
+[project.scripts]
+ischolar-desktop = "ischolar_desktop.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

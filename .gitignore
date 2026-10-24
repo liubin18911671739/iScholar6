@@ -37,6 +37,9 @@ services/backend/.pytest_cache/
 services/backend/.ruff_cache/
 services/eval/.venv/
 services/eval/.pytest_cache/
+desktop/.venv/
+desktop/build/
+desktop/dist/
 
 # vercel
 .vercel
