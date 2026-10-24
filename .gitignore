@@ -38,6 +38,7 @@ services/backend/.ruff_cache/
 services/eval/.venv/
 services/eval/.pytest_cache/
 desktop/.venv/
+desktop/src/ischolar_desktop.egg-info/
 desktop/build/
 desktop/dist/
 
