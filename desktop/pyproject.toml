@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = ["PySide6-Essentials>=6.7", "pypdf>=5.0"]
 
 [project.optional-dependencies]
-macos-build = ["pyinstaller>=6.10"]
+build = ["pyinstaller>=6.10"]
 
 [project.scripts]
 ischolar-desktop = "ischolar_desktop.app:main"

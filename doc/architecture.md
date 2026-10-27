@@ -33,7 +33,7 @@ iScholar v6.0 是一个 **AI-native 学术研究平台**。目标架构中，系
 ### 1.1 设计原则
 
 1. **单一数据所有权**：Python 后端拥有全部领域表；web 只直连 auth 表。
-2. **身份签名，永不裸信**：web 对用户身份签名后转发，后端校验 HMAC 与时间窗。
+2. **身份签名，永不裸信**：web 对用户身份签名后转发，后端校验 HMAC 与时间窗；桌面端使用后端签发的短时效 bearer 令牌，两者都不携带明文身份声明之外的特权。
 3. **持久化 Agent**：LangGraph 图 + Postgres checkpointer，运行可恢复、可审批、可取消。
 4. **薄 BFF**：Next.js 不承载业务规则，只做认证、签名、代理与渲染。
 5. **可观测 / 可审计**：运行事件、审计链与产物均落库。
@@ -186,9 +186,9 @@ pages: { signIn: "/login" }
 
 路由处理器位于 `app/api/auth/[...nextauth]/route.ts`。
 
-### 4.2 服务身份签名
+### 4.2 身份认证（两条通道）
 
-`lib/server/backend.ts` 为当前会话生成签名头：
+**Web（BFF）**：`lib/server/backend.ts` 为当前会话生成签名头：
 
 ```ts
 const timestamp = String(Math.floor(Date.now() / 1000));
@@ -200,6 +200,14 @@ return {
   "X-IScholar-Signature": signature,
 };
 ```
+
+**桌面客户端**：不依赖 Next.js 进程，直连后端。`POST /v1/auth/login` 用邮箱 + 密码换取短时效 JWT bearer 令牌（内存保存），后续请求带 `Authorization: Bearer <token>`。签名密钥由 `AGENT_SERVICE_TOKEN` 派生、仅存在于服务端；令牌本身不含角色，授权仍按请求从数据库解析角色。详见 `desktop/README.md`。
+
+已知权衡（当前接受，见 code review）：
+
+- **无服务端吊销**：`logout` 仅在客户端丢弃令牌，泄露的令牌在 TTL（默认 12h，`DESKTOP_TOKEN_TTL_SECONDS`）内不可作废。缓解：令牌仅存内存、不含角色、密钥仅在服务端。后续可选：缩短 TTL 或增加 `/v1/auth/logout` + Redis denylist。
+- **密钥耦合**：轮换 `AGENT_SERVICE_TOKEN` 会使全部桌面会话失效（Web BFF 签名同步失效，属预期）；反之，若生产未替换占位值，桌面令牌可被伪造——生产占位值守卫（`config.py`）同时覆盖两条通道。
+- **限流作用域**：登录限流键为 `客户端 IP + 邮箱`（进程内、10 次 / 15 分钟）。直连拓扑下按账号隔离；若后端置于反向代理之后，所有请求共享代理 IP，退化为按邮箱隔离（同账号跨主机共享预算）。见 `app/api/v1/auth.py`。
 
 ### 4.3 薄代理
 
@@ -233,16 +241,20 @@ return {
 | `database_url` | `postgresql+asyncpg://…` | 后端领域库 |
 | `redis_url` | `redis://…` | 限流 / pub-sub |
 | `cors_origins` | `http://localhost:3000` | 逗号分隔白名单 |
-| `agent_service_token` | `dev-insecure-change-me` | 服务身份签名密钥 |
+| `agent_service_token` | `dev-insecure-change-me` | 服务身份签名密钥（桌面令牌密钥亦由其派生） |
+| `desktop_token_ttl_seconds` | `43200`（12 小时） | 桌面访问令牌有效期 |
 | `deepseek_api_key` / `_api_url` / `_model` | `…` / `api.deepseek.com` / `deepseek-v4-flash` | 模型调用 |
 | `environment` | `development` | 生产判断 |
 
-### 5.3 安全（服务身份）
+### 5.3 安全（身份校验）
 
 `app/core/security.py`：
 
-- `require_identity` 依赖：要求三个签名头齐全，时间戳为整数且在 ±300s 内，`hmac.compare_digest` 校验签名，失败分别返回 `401 MISSING_SERVICE_IDENTITY` / `INVALID_SERVICE_TIMESTAMP` / `STALE_SERVICE_SIGNATURE` / `INVALID_SERVICE_SIGNATURE`。
-- `sign_identity()` 供测试与 web 侧对齐构造签名。
+- `require_identity` 依赖接受两种凭据之一：
+  - **Bearer 令牌**（桌面端）：`Authorization: Bearer <JWT>`，HS256 校验、`exp` 与 `typ` 声明校验；失败返回 `401 INVALID_AUTHORIZATION_SCHEME` / `EXPIRED_ACCESS_TOKEN` / `INVALID_ACCESS_TOKEN`。
+  - **服务签名头**（Web BFF）：三个 `X-IScholar-*` 头齐全，时间戳为整数且在 ±300s 内，`hmac.compare_digest` 校验签名，失败分别返回 `401 MISSING_SERVICE_IDENTITY` / `INVALID_SERVICE_TIMESTAMP` / `STALE_SERVICE_SIGNATURE` / `INVALID_SERVICE_SIGNATURE`。
+- `sign_identity()` 供测试与 web 侧对齐构造签名；`create_desktop_token()` / `verify_desktop_token()` 供桌面令牌签发与校验。
+- `POST /v1/auth/login`（`app/api/v1/auth.py`）：读取 `users` 表校验 bcrypt 密码（与 web 的 bcryptjs 同一哈希），按 IP + 邮箱滑动窗口限流（10 次/15 分钟），未知邮箱也执行同成本哈希比较以防用户枚举。
 
 ### 5.4 路由一览
 
@@ -250,6 +262,7 @@ return {
 | --- | --- | --- |
 | GET | `/v1/healthz` | 存活；compose healthcheck 唯一入口 |
 | GET | `/v1/readyz` | 就绪（依赖可用性） |
+| POST | `/v1/auth/login` | 桌面端换取访问令牌（无需身份头；限流 + bcrypt 校验） |
 | GET | `/v1/me` | 返回校验后的 `{ userId }` |
 | GET/POST | `/v1/data/projects` | 项目列表 / 创建（其余领域 API 同此授权模式） |
 | POST | `/v1/agent/threads` | 创建线程 |
@@ -362,15 +375,20 @@ data: <json>
 
 - 成功：`{ "ok": true, "data": … }`；分页/列表同样包裹 `data`。
 - 失败：HTTP 状态码 + `{ "detail": "ERROR_CODE" }`（FastAPI `HTTPException`）。
-- 服务身份头必填（除 `/v1/healthz`、`/v1/readyz`）。
+- 身份凭据必填（除 `/v1/healthz`、`/v1/readyz`、`/v1/auth/login`）：`Authorization: Bearer <令牌>`（桌面端）或 `X-IScholar-*` 服务签名头（Web BFF），二者取其一。
 - 前端经 BFF 访问，路径前缀为 `/api/agent`（转发到后端 `/v1`），例如：
   `POST /api/agent/agent/runs` → `POST {BACKEND_INTERNAL_URL}/v1/agent/runs`。
+  桌面端直连后端，把同名路径的 `/api/` 前缀映射为 `/v1/`（`desktop/src/ischolar_desktop/api.py: backend_path`）。
 
 ### 8.2 关键错误码
 
 | 错误码 | 状态 | 含义 |
 | --- | --- | --- |
 | `UNAUTHENTICATED` | 401 | BFF 无 Auth.js 会话 |
+| `INVALID_CREDENTIALS` | 401 | 桌面登录邮箱或密码错误 |
+| `TOO_MANY_ATTEMPTS` | 429 | 桌面登录限流（10 次 / 15 分钟 / IP+邮箱） |
+| `EXPIRED_ACCESS_TOKEN` / `INVALID_ACCESS_TOKEN` | 401 | 桌面令牌过期 / 非法 |
+| `INVALID_AUTHORIZATION_SCHEME` | 401 | `Authorization` 非 Bearer 方案 |
 | `MISSING_SERVICE_IDENTITY` | 401 | 缺少签名头 |
 | `STALE_SERVICE_SIGNATURE` | 401 | 签名超出 ±300s |
 | `INVALID_SERVICE_SIGNATURE` | 401 | HMAC 不匹配 |
@@ -512,7 +530,9 @@ data: <json>
 | 文件 | 职责 |
 | --- | --- |
 | `services/backend/app/main.py` | FastAPI 入口 |
-| `services/backend/app/core/security.py` | 服务身份签名与校验 |
+| `services/backend/app/core/security.py` | 身份校验（服务签名 + 桌面令牌） |
+| `services/backend/app/api/v1/auth.py` | 桌面登录（bcrypt + 限流） |
+| `desktop/src/ischolar_desktop/api.py` | 桌面端直连后端的 API 客户端 |
 | `services/backend/app/core/config.py` | 后端设置 |
 | `services/backend/app/models/domain.py` | 领域模型 |
 | `services/backend/app/agents/harness.py` | AgentHarness（预算/事件/幂等产物） |

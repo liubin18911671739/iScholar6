@@ -110,8 +110,8 @@ uv sync --extra dev && uv run ruff check && uv run pytest
 三条规定，违反会导致安全或数据问题：
 
 1. **领域数据只经 Python 后端**：web 不得直接读写领域表；一律走 `/v1/*`（经 `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` 代理）。
-2. **auth 表只归 web**：`users` / `accounts` / `verification_token` 由 Auth.js 连接池访问；后端**不得**写这些表。
-3. **身份必须签名**：web 用 `lib/server/backend.ts` 生成 `X-IScholar-*`；后端用 `app/core/security.py` 校验。**绝不**转发裸用户 id，**绝不**把 `AGENT_SERVICE_TOKEN` / `BACKEND_INTERNAL_URL` 暴露给浏览器。
+2. **auth 表只归 web 写**：`users` / `accounts` / `verification_token` 的**写入**由 Auth.js 连接池独占（改密码、邀请等都在 web）；后端只读 `users`——`deps.resolve_role` 读 `role`，`POST /v1/auth/login`（桌面登录）读 `password_hash` 做 bcrypt 校验，两者都不写表。
+3. **身份必须签名或持有令牌**：web 用 `lib/server/backend.ts` 生成 `X-IScholar-*`；桌面端用 `POST /v1/auth/login` 换取的 `Authorization: Bearer` 令牌；后端统一用 `app/core/security.py` 的 `require_identity` 校验二者。**绝不**转发裸用户 id，**绝不**把 `AGENT_SERVICE_TOKEN` / `BACKEND_INTERNAL_URL` 暴露给浏览器或桌面端（桌面令牌密钥由服务端派生）。
 
 ```ts
 // web：BFF 转发

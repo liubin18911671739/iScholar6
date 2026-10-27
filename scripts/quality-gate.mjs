@@ -24,9 +24,9 @@ function run(label, command, env = {}) {
 }
 
 // Best-effort step: never abort the gate on failure (e.g. Docker not running).
-function runOptional(label, command) {
+function runOptional(label, command, env = {}) {
   console.log(`\n==> ${label} (optional)\n$ ${command}`);
-  const result = spawnSync(command, { shell: true, stdio: "inherit", env: process.env });
+  const result = spawnSync(command, { shell: true, stdio: "inherit", env: { ...process.env, ...env } });
   if (result.status !== 0) {
     console.warn(`\n[warn] ${label} failed — continuing. E2E will report if Postgres is unreachable.`);
   }
@@ -46,6 +46,10 @@ runOptional(
   "cd services/eval && uv run ruff check . && uv run pytest -q"
 );
 runOptional("agent eval offline", "pnpm agent:eval");
+// Desktop client unit tests (stdlib unittest; PYTHONPATH points at src/).
+runOptional("desktop unittest", "cd desktop && python3 -m unittest discover -s tests", {
+  PYTHONPATH: "src",
+});
 
 run("build", "pnpm build");
 

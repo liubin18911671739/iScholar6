@@ -151,18 +151,21 @@ async def create_run(
 
 @router.get("/runs")
 async def list_runs(
-    project_id: uuid.UUID = Query(alias="projectId"),
+    project_id: uuid.UUID | None = Query(default=None, alias="projectId"),
     limit: int = Query(default=50, ge=1, le=200),
     identity: Identity = Depends(require_identity),
     session: AsyncSession = Depends(get_session),
 ):
-    """List the caller's runs for a project, newest first, with artifacts."""
+    """List the caller's runs (optionally scoped to a project), newest first, with artifacts."""
     owner_id = identity_uuid(identity)
-    await owned_project(session, project_id, owner_id)
+    conditions = [AgentRun.owner_id == owner_id]
+    if project_id is not None:
+        await owned_project(session, project_id, owner_id)
+        conditions.append(AgentRun.project_id == project_id)
     runs = (
         await session.scalars(
             select(AgentRun)
-            .where(AgentRun.project_id == project_id, AgentRun.owner_id == owner_id)
+            .where(*conditions)
             .order_by(AgentRun.created_at.desc())
             .limit(limit)
         )

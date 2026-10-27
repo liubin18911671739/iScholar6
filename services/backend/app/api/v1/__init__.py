@@ -2,10 +2,11 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import agent, audit, data, health, mcp, me, plugins, realtime, training, vectors
+from app.api.v1 import agent, audit, auth, data, health, mcp, me, plugins, realtime, training, vectors
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(auth.router)
 api_router.include_router(me.router, prefix="/me", tags=["identity"])
 api_router.include_router(data.router)
 api_router.include_router(training.router)

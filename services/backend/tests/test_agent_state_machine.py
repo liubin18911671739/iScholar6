@@ -174,6 +174,52 @@ async def test_events_stream_resumes_after_sequence(client, db_session: AsyncSes
 
 
 @pytest.mark.asyncio
+async def test_list_runs_requires_identity(client) -> None:
+    response = await client.get("/v1/agent/runs")
+    assert response.status_code == 401
+    assert response.json()["detail"] == "MISSING_SERVICE_IDENTITY"
+
+
+@pytest.mark.asyncio
+async def test_list_runs_without_project_returns_own_runs(client, db_session: AsyncSession) -> None:
+    owner = await _seed_user(db_session)
+    other = await _seed_user(db_session)
+    _, thread = await _seed_thread(db_session, owner)
+    _, foreign_thread = await _seed_thread(db_session, other)
+    run = await _seed_run(db_session, thread, owner)
+    await _seed_run(db_session, foreign_thread, other)
+
+    response = await client.get("/v1/agent/runs", headers=sign_identity(str(owner)))
+
+    assert response.status_code == 200
+    rows = response.json()["data"]
+    assert [row["id"] for row in rows] == [str(run.id)]
+
+
+@pytest.mark.asyncio
+async def test_list_runs_with_project_still_scopes_and_checks_ownership(
+    client, db_session: AsyncSession
+) -> None:
+    owner = await _seed_user(db_session)
+    other = await _seed_user(db_session)
+    project, thread = await _seed_thread(db_session, owner)
+    run = await _seed_run(db_session, thread, owner)
+
+    scoped = await client.get(
+        f"/v1/agent/runs?projectId={project.id}", headers=sign_identity(str(owner))
+    )
+    assert scoped.status_code == 200
+    assert [row["id"] for row in scoped.json()["data"]] == [str(run.id)]
+
+    # Another user's project must stay invisible (404, not an empty list).
+    foreign = await client.get(
+        f"/v1/agent/runs?projectId={project.id}", headers=sign_identity(str(other))
+    )
+    assert foreign.status_code == 404
+    assert foreign.json()["detail"] == "PROJECT_NOT_FOUND"
+
+
+@pytest.mark.asyncio
 async def test_worker_run_interrupts_then_resumes(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:

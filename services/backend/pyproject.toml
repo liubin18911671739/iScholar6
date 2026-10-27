@@ -26,6 +26,7 @@ dependencies = [
     "orjson>=3.10",
     # LTI AGS grade passback (client-assertion JWT; RS256 via cryptography)
     "pyjwt[crypto]>=2.8",
+    "bcrypt>=4.1",
 ]
 
 [project.optional-dependencies]

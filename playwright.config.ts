@@ -47,6 +47,10 @@ export default defineConfig({
       AUTH_DATABASE_URL: e2eAuthDatabaseUrl(),
       AUTH_URL: baseURL,
       AUTH_TRUST_HOST: "true",
+      // Same rationale: the spawned web runs on the host, where compose's
+      // docker-internal `backend` host does not resolve; the backend port is
+      // published on 127.0.0.1. Override via PLAYWRIGHT_BACKEND_URL if needed.
+      BACKEND_INTERNAL_URL: process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:8000",
     },
   },
 });

@@ -40,17 +40,17 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 ## 实现状态
 
-| 阶段 | 状态 | 说明 |
-| --- | --- | --- |
-| Stage 0 · Docker + Auth | 🟢 | compose（web/backend/worker/postgres/redis/proxy）；Auth.js（Credentials + Postgres）+ Edge `middleware.ts` 守卫；HMAC 服务身份；Alembic + `db/init` auth 表 |
-| Stage 1 · 后端数据 API | 🟢 | `/v1/data/*`（12 资源）+ `/v1/vectors`；`/v1/training/*` 全套（analytics/export/LMS gradebook/consents/evidence）；`/v1/audit`、`/v1/realtime`、`/v1/plugins`；前端数据层 `lib/client/*` + React Query（`@/lib/hooks`） |
-| Stage 2 · Agent 运行时核心 | 🟡 | durable run API（threads/runs/SSE/resume/cancel）+ `AgentHarness` + LangGraph + Postgres checkpointer + worker；DeepSeek `bind_tools` 与 SSE 流式已接入；状态机契约测试已补；剩余：真实模型 live 冒烟 |
-| Stage 3 · MCP | 🟢 | 工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池 + `/v1/mcp` REST |
-| Stage 4 · 7 个智能体 | 🟢 | 7 张图 + prompts + Pydantic 结构化输出；Agent UI 走后端 `/api/agent` |
-| Stage 5 · 评估 harness | 🟢 | 离线数据集/检查/阈值报告 + `EVAL_MODE=live` + 可选 LLM judge（仓库无 CI） |
-| Stage 6 · Hermes/训练/插件/清理 | 🟢 | Hermes 图、可检查点多轮教练图、按用户声明式插件 MCP 工具、遗留直连路由删除 |
-| Stage 7 · 多智能体协作 | 🟡 | `research-plan` 协作图（双人工门 + 有界返工）+ 前端 WorkflowPanel + worker 租约/心跳/reaper + 协作评测；剩余：真实模型 live 冒烟 |
-| 质量门禁 | 🟢 | `tsc` / `lint` / `vitest`（45 文件 208 用例）/ 后端 `ruff` + `pytest`（206）/ 评估 `pytest`（7）全绿 |
+| 阶段                             | 状态 | 说明                                                                                                                                                                                                                                    |
+| -------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stage 0 · Docker + Auth         | 🟢   | compose（web/backend/worker/postgres/redis/proxy）；Auth.js（Credentials + Postgres）+ Edge `middleware.ts` 守卫；HMAC 服务身份；Alembic + `db/init` auth 表                                                                        |
+| Stage 1 · 后端数据 API          | 🟢   | `/v1/data/*`（12 资源）+ `/v1/vectors`；`/v1/training/*` 全套（analytics/export/LMS gradebook/consents/evidence）；`/v1/audit`、`/v1/realtime`、`/v1/plugins`；前端数据层 `lib/client/*` + React Query（`@/lib/hooks`） |
+| Stage 2 · Agent 运行时核心      | 🟡   | durable run API（threads/runs/SSE/resume/cancel）+`AgentHarness` + LangGraph + Postgres checkpointer + worker；DeepSeek `bind_tools` 与 SSE 流式已接入；状态机契约测试已补；剩余：真实模型 live 冒烟                                |
+| Stage 3 · MCP                   | 🟢   | 工具注册表 + SSRF/2 MiB 守卫 + FastMCP 服务端 + 客户端池 +`/v1/mcp` REST                                                                                                                                                              |
+| Stage 4 · 7 个智能体            | 🟢   | 7 张图 + prompts + Pydantic 结构化输出；Agent UI 走后端 `/api/agent`                                                                                                                                                                  |
+| Stage 5 · 评估 harness          | 🟢   | 离线数据集/检查/阈值报告 +`EVAL_MODE=live` + 可选 LLM judge（仓库无 CI）                                                                                                                                                              |
+| Stage 6 · Hermes/训练/插件/清理 | 🟢   | Hermes 图、可检查点多轮教练图、按用户声明式插件 MCP 工具、遗留直连路由删除                                                                                                                                                              |
+| Stage 7 · 多智能体协作          | 🟡   | `research-plan` 协作图（双人工门 + 有界返工）+ 前端 WorkflowPanel + worker 租约/心跳/reaper + 协作评测；剩余：真实模型 live 冒烟                                                                                                      |
+| 质量门禁                         | 🟢   | `tsc` / `lint` / `vitest`（45 文件 208 用例）/ 后端 `ruff` + `pytest`（206）/ 评估 `pytest`（7）全绿                                                                                                                        |
 
 ---
 
@@ -75,23 +75,23 @@ compose：web · backend · worker · postgres · redis · proxy(Caddy) · eval(
 
 ## 技术栈
 
-| 层 | 技术 |
-| --- | --- |
-| Web 框架 | Next.js 14（App Router）+ TypeScript（strict） |
-| Web 认证 | Auth.js（NextAuth v5，Credentials + PostgreSQL） |
-| Web 数据获取 | TanStack React Query（经 BFF 代理后端） |
-| BFF | `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` + `app/api/mcp/[tool]`（`lib/server/backend-proxy.ts`，HMAC 签名 + allowlist） |
-| 后端 | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic |
-| Agent 运行时 | LangGraph + langgraph-checkpoint-postgres + langchain-openai |
-| 数据库 | PostgreSQL 16 + pgvector（Alembic 迁移，14 个，head `20261023_0014`） |
-| 缓存 / 限流 | Redis 7 |
-| AI 模型 | DeepSeek `deepseek-v4-flash`（回退 `deepseek-chat`） |
-| 反向代理 | Caddy 2（TLS + SSE 反缓冲） |
-| UI | Tailwind CSS + shadcn/ui（Radix primitives） |
-| 状态 | Zustand（locale）+ React Query |
-| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题 |
-| 编辑器 | Tiptap + KaTeX + Markdown 转换 |
-| 测试 | Vitest（前端）+ Playwright（E2E）+ pytest（后端） |
+| 层            | 技术                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web 框架      | Next.js 14（App Router）+ TypeScript（strict）                                                                                                                |
+| Web 认证      | Auth.js（NextAuth v5，Credentials + PostgreSQL）                                                                                                              |
+| Web 数据获取  | TanStack React Query（经 BFF 代理后端）                                                                                                                       |
+| BFF           | `app/api/{agent,data,training,audit,realtime,vectors,plugins}/[...path]` + `app/api/mcp/[tool]`（`lib/server/backend-proxy.ts`，HMAC 签名 + allowlist） |
+| 后端          | Python 3.12 + FastAPI + SQLAlchemy(asyncpg) + Alembic                                                                                                         |
+| Agent 运行时  | LangGraph + langgraph-checkpoint-postgres + langchain-openai                                                                                                  |
+| 数据库        | PostgreSQL 16 + pgvector（Alembic 迁移，14 个，head `20261023_0014`）                                                                                       |
+| 缓存 / 限流   | Redis 7                                                                                                                                                       |
+| AI 模型       | DeepSeek `deepseek-v4-flash`（回退 `deepseek-chat`）                                                                                                      |
+| 反向代理      | Caddy 2（TLS + SSE 反缓冲）                                                                                                                                   |
+| UI            | Tailwind CSS + shadcn/ui（Radix primitives）                                                                                                                  |
+| 状态          | Zustand（locale）+ React Query                                                                                                                                |
+| 国际化 / 主题 | next-intl（zh-CN 默认）/ 单一暗色主题                                                                                                                         |
+| 编辑器        | Tiptap + KaTeX + Markdown 转换                                                                                                                                |
+| 测试          | Vitest（前端）+ Playwright（E2E）+ pytest（后端）                                                                                                             |
 
 ---
 
@@ -218,7 +218,7 @@ lib/
 services/
 ├── backend/                      # ★ FastAPI + LangGraph + MCP
 │   ├── app/main.py               #   入口
-│   ├── app/api/v1/               #   /healthz /readyz /me /data /vectors /agent /training /mcp /audit /realtime /plugins
+│   ├── app/api/v1/               #   /healthz /readyz /auth/login /me /data /vectors /agent /training /mcp /audit /realtime /plugins
 │   ├── app/core/                 #   config / db / security / authz / events
 │   ├── app/agents/               #   harness / runtime / model / prompts / schemas / graphs/*
 │   ├── app/models/               #   domain.py / research.py / training.py / plugins.py
@@ -239,15 +239,15 @@ __tests__/  e2e/                  # 前端测试；后端测试在 services/back
 
 完整生命周期：**选题 → 综述 → 设计 → 数据 → 写作 → 投稿 → 返修**。8 步进度条中「数据」与「分析」两步共享 DataPilot 智能体。
 
-| # | 智能体 | 输入 | 输出 / 应用 |
-| - | --- | --- | --- |
-| 1 | TopicScout | 学科领域、关键词、目标期刊 | 3 个候选选题（新颖性/价值/可行性评分）→ 写入 `topic` 区块 |
-| 2 | LitReview | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目 |
-| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估 |
-| 4 | DataPilot | 数据来源、收集方法 | 分析脚本（Python/R）、清洗步骤、分析计划 |
-| 5 | IMRaDWriter | 章节、引用格式 | 富文本正文 + 参考文献 → 编辑器可编辑 |
-| 6 | SubmitMatch | 摘要、关键词、OA 偏好 | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包 |
-| 7 | RebuttalShow | 审稿意见文本 / PDF | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目 |
+| # | 智能体           | 输入                         | 输出 / 应用                                                  |
+| - | ---------------- | ---------------------------- | ------------------------------------------------------------ |
+| 1 | TopicScout       | 学科领域、关键词、目标期刊   | 3 个候选选题（新颖性/价值/可行性评分）→ 写入 `topic` 区块 |
+| 2 | LitReview        | 检索词、年份范围、数据库多选 | 文献表 + 主题/缺口 → 保存为文献条目                         |
+| 3 | ResearchDesigner | 研究问题、方法提示、研究类型 | 假设、变量表、可行性评估                                     |
+| 4 | DataPilot        | 数据来源、收集方法           | 分析脚本（Python/R）、清洗步骤、分析计划                     |
+| 5 | IMRaDWriter      | 章节、引用格式               | 富文本正文 + 参考文献 → 编辑器可编辑                        |
+| 6 | SubmitMatch      | 摘要、关键词、OA 偏好        | 期刊匹配表 + 投稿清单 → 投稿记录 + ZIP 投稿包               |
+| 7 | RebuttalShow     | 审稿意见文本 / PDF           | 逐条回复表 + 修改位置 → 审稿轮次 + 回复条目                 |
 
 > 智能体页共享 `AgentPageTemplate`，行为定义在 `components/agents/configs/<agent>/` 的按智能体目录，注册表在 `components/agents/`。
 >

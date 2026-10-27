@@ -23,7 +23,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     # Shared secret used to sign the identity forwarded from the web container.
+    # The desktop access-token key is derived from it (see core/security.py),
+    # so production's placeholder guard below also covers desktop tokens.
     agent_service_token: str = "dev-insecure-change-me"
+
+    # Desktop client password login: lifetime of the issued bearer access token.
+    desktop_token_ttl_seconds: int = 12 * 60 * 60
 
     deepseek_api_key: str | None = None
     deepseek_api_url: str = "https://api.deepseek.com"

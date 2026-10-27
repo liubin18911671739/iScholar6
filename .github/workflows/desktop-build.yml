@@ -1,0 +1,114 @@
+name: Desktop builds
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2025
+            artifact: iScholar-windows-x64
+            package: iScholar-windows-x64.zip
+          - platform: macos-arm64
+            runner: macos-15
+            artifact: iScholar-macos-arm64
+            package: iScholar-macos-arm64.zip
+          - platform: linux-x64
+            runner: ubuntu-22.04
+            artifact: iScholar-linux-x64
+            package: iScholar-linux-x64.tar.gz
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install desktop build dependencies
+        working-directory: desktop
+        run: python -m pip install -e ".[build]"
+
+      - name: Run desktop unit tests
+        working-directory: desktop
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests
+
+      - name: Build desktop executable
+        working-directory: desktop
+        run: python -m PyInstaller --clean --noconfirm --distpath dist --workpath build iScholar.spec
+
+      - name: Smoke-check executable
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        run: .\dist\iScholar\iScholar.exe --smoke-test
+
+      - name: Smoke-check executable
+        if: runner.os == 'macOS'
+        working-directory: desktop
+        run: dist/iScholar.app/Contents/MacOS/iScholar --smoke-test
+
+      - name: Smoke-check executable
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: dist/iScholar/iScholar --smoke-test
+
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        shell: pwsh
+        run: Compress-Archive -Path dist/iScholar -DestinationPath dist/iScholar-windows-x64.zip
+
+      - name: Package macOS build
+        if: runner.os == 'macOS'
+        working-directory: desktop
+        run: ditto -c -k --sequesterRsrc --keepParent dist/iScholar.app dist/iScholar-macos-arm64.zip
+
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: tar -czf dist/iScholar-linux-x64.tar.gz -C dist iScholar
+
+      - name: Upload platform artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.artifact }}
+          path: desktop/dist/${{ matrix.package }}
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish desktop release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: iScholar-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --title "$GITHUB_REF_NAME" --generate-notes

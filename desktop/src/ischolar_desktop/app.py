@@ -153,27 +153,35 @@ class LoginDialog(QDialog):
         super().__init__(parent)
         self.api = api
         self.setWindowTitle("登录 iScholar")
-        self.setMinimumWidth(450)
+        self.setMinimumWidth(520)
         outer = QVBoxLayout(self)
+        outer.setSpacing(12)
         brand = QLabel("iScholar")
         brand.setStyleSheet("font-size:28px;font-weight:700;color:#102b45")
         outer.addWidget(brand)
-        note = QLabel("登录你的研究工作区。桌面客户端通过本地 Next.js 认证代理访问服务。")
+        note = QLabel("登录你的研究工作区。桌面客户端直连本地 FastAPI 后端，无需启动 Web 前端。")
         note.setWordWrap(True)
         note.setObjectName("muted")
         outer.addWidget(note)
         form = QFormLayout()
+        form.setHorizontalSpacing(16)
+        form.setVerticalSpacing(10)
         self.base = QLineEdit(api.base_url)
+        self.base.setMinimumHeight(32)
         self.email = QLineEdit()
         self.email.setPlaceholderText("you@example.com")
+        self.email.setMinimumHeight(32)
         self.password = QLineEdit()
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password.setMinimumHeight(32)
         self.password.returnPressed.connect(self.submit)
         form.addRow("本地服务地址", self.base)
         form.addRow("邮箱", self.email)
         form.addRow("密码", self.password)
         outer.addLayout(form)
         self.status = QLabel("")
+        self.status.setWordWrap(True)
+        self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.status.setStyleSheet("color:#bd3434")
         outer.addWidget(self.status)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
@@ -185,11 +193,13 @@ class LoginDialog(QDialog):
 
     def submit(self) -> None:
         self.api.set_base_url(self.base.text())
+        self.status.setStyleSheet("color:#566a81")
         self.status.setText("正在连接并验证…")
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             self.api.login(self.email.text(), self.password.text())
         except Exception as exc:
+            self.status.setStyleSheet("color:#bd3434")
             self.status.setText(str(exc))
         else:
             self.accept()
@@ -1467,14 +1477,14 @@ class SettingsPage(ScrollPage):
         connection = card()
         c = QVBoxLayout(connection)
         c.addWidget(section_label("服务连接"))
-        c.addWidget(QLabel(f"Next.js 应用 / 认证代理：{main.api.base_url}"))
-        c.addWidget(QLabel("桌面端仅保留 Auth.js 会话 Cookie，不读取或保存 backend service token。"))
-        c.addWidget(QLabel("API 状态：已使用当前账号会话访问。"))
+        c.addWidget(QLabel(f"FastAPI 后端服务：{main.api.base_url}"))
+        c.addWidget(QLabel("桌面端仅在内存中保留短时效访问令牌，不读取或保存 backend service token。"))
+        c.addWidget(QLabel("API 状态：已使用当前账号的访问令牌访问。"))
         self.layout.addWidget(connection)
         plugins = card()
         p = QVBoxLayout(plugins)
         p.addWidget(section_label("扩展与服务"))
-        p.addWidget(QLabel("插件、MCP 和外部模型服务沿用当前 Web 后端配置。"))
+        p.addWidget(QLabel("插件、MCP 和外部模型服务沿用后端当前配置。"))
         self.layout.addWidget(plugins)
         self.backend_status = QTextBrowser()
         self.backend_status.setMaximumHeight(220)
@@ -1524,8 +1534,18 @@ def urllib_quote(value: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="iScholar PySide6 desktop client")
-    parser.add_argument("--base-url", default=os.getenv("ISCHOLAR_WEB_URL", "http://127.0.0.1:3000"), help="Next.js BFF base URL")
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("ISCHOLAR_BACKEND_URL", "http://127.0.0.1:8000"),
+        help="FastAPI backend base URL (no web/BFF required)",
+    )
+    parser.add_argument("--smoke-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.smoke_test:
+        "example.com".encode("idna")
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+        QApplication([])
+        return 0
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setFont(QFont("Inter", 10))
