@@ -37,10 +37,46 @@ class LoopbackProxyBypassTests(unittest.TestCase):
         self.assertIsNone(handler.proxy_open(request, "http://localhost:10808", "http"))
 
     def test_opener_uses_the_bypassing_handler(self) -> None:
-        api = ApiClient()
+        """The bypass handler installs only when proxies exist (by urllib design).
+
+        ProxyHandler dynamically creates `<scheme>_open` methods from
+        getproxies(), and OpenerDirector only registers handlers exposing at
+        least one such method. With no proxy anywhere, urllib goes direct
+        anyway and never installs any proxy handler — which is also correct.
+        The bypass matters exactly when a proxy is configured.
+        """
+        import os
+
+        old = os.environ.get("http_proxy")
+        os.environ["http_proxy"] = "http://127.0.0.1:9"
+        try:
+            api = ApiClient()
+        finally:
+            if old is None:
+                os.environ.pop("http_proxy", None)
+            else:
+                os.environ["http_proxy"] = old
         self.assertTrue(
             any(isinstance(h, DirectProxyHandler) for h in api._opener.handlers),
-            "ApiClient must route HTTP through DirectProxyHandler",
+            "ApiClient must route HTTP through DirectProxyHandler when a proxy is configured",
+        )
+
+    def test_opener_goes_direct_without_any_proxy(self) -> None:
+        """With no proxy configured the opener stays empty of proxy handlers."""
+        import os
+
+        saved = {k: os.environ.pop(k, None) for k in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "all_proxy", "ALL_PROXY")}
+        try:
+            handlers = ApiClient()._opener.handlers
+        finally:
+            for key, value in saved.items():
+                if value is not None:
+                    os.environ[key] = value
+        # No proxy registered -> urllib's default is a direct connection, and
+        # no handler may claim to handle one (proxy_open is never consulted).
+        self.assertFalse(
+            any(type(h).__name__ == "ProxyHandler" for h in handlers),
+            "default ProxyHandler must stay skipped in favor of DirectProxyHandler",
         )
 
 
