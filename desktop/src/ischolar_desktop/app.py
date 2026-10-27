@@ -112,6 +112,7 @@ class TaskSignals(QObject):
 class ApiTask(QRunnable):
     def __init__(self, fn: Callable[[], Any]) -> None:
         super().__init__()
+        self.setAutoDelete(False)
         self.fn = fn
         self.signals = TaskSignals()
 
@@ -122,11 +123,50 @@ class ApiTask(QRunnable):
             self.signals.error.emit(str(exc))
 
 
+class TaskOwner(QObject):
+    """Keep runnable wrappers and their callbacks alive until workers have returned."""
+
+    def __init__(self, app: QApplication) -> None:
+        super().__init__(app)
+        self.tasks: dict[QThreadPool, list[ApiTask]] = {}
+        self.timer = QTimer(self)
+        self.timer.setInterval(50)
+        self.timer.timeout.connect(self.collect_finished)
+        app.aboutToQuit.connect(self.shutdown)
+
+    def start(self, pool: QThreadPool, task: ApiTask) -> None:
+        self.tasks.setdefault(pool, []).append(task)
+        self.timer.start()
+        pool.start(task)
+
+    def collect_finished(self) -> None:
+        # A result can be delivered before run() returns. Only release wrappers
+        # after Qt confirms that no runnable is still executing in this pool.
+        for pool in list(self.tasks):
+            if pool.waitForDone(0):
+                del self.tasks[pool]
+        if not self.tasks:
+            self.timer.stop()
+
+    def shutdown(self) -> None:
+        self.timer.stop()
+        for pool in self.tasks:
+            pool.waitForDone()
+        self.tasks.clear()
+
+
 def call_async(pool: QThreadPool, fn: Callable[[], Any], done: Callable[[Any], None], fail: Callable[[str], None]) -> None:
+    app = QApplication.instance()
+    if app is None:
+        raise RuntimeError("Background tasks require a QApplication")
+    owner = getattr(app, "_ischolar_task_owner", None)
+    if owner is None:
+        owner = TaskOwner(app)
+        app._ischolar_task_owner = owner
     task = ApiTask(fn)
     task.signals.result.connect(done, Qt.ConnectionType.QueuedConnection)
     task.signals.error.connect(fail, Qt.ConnectionType.QueuedConnection)
-    pool.start(task)
+    owner.start(pool, task)
 
 
 def card(parent: QWidget | None = None) -> QFrame:
